@@ -88,7 +88,6 @@ export default function ProjectManagement() {
   // ✅ Mutation: add new project
   const addProject = useMutation({
     mutationFn: async () => {
-      // ⚡ For now, bypass auth to avoid "Auth session missing"
       const { error } = await supabaseProject.from("projects").insert([newProject]);
       if (error) throw error;
     },
