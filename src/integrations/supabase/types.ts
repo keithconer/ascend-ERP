@@ -14,6 +14,73 @@ export type Database = {
   }
   public: {
     Tables: {
+      article_feedback: {
+        Row: {
+          article_id: string | null
+          created_at: string
+          customer_id: string | null
+          feedback_text: string | null
+          id: string
+          is_helpful: boolean
+        }
+        Insert: {
+          article_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          feedback_text?: string | null
+          id?: string
+          is_helpful: boolean
+        }
+        Update: {
+          article_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          feedback_text?: string | null
+          id?: string
+          is_helpful?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_feedback_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "kb_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budgets: {
+        Row: {
+          actual_amount: number | null
+          created_at: string | null
+          id: string
+          planned_amount: number
+          project_id: string | null
+        }
+        Insert: {
+          actual_amount?: number | null
+          created_at?: string | null
+          id?: string
+          planned_amount: number
+          project_id?: string | null
+        }
+        Update: {
+          actual_amount?: number | null
+          created_at?: string | null
+          id?: string
+          planned_amount?: number
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -37,6 +104,82 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      customer_communications: {
+        Row: {
+          agent_id: string | null
+          communication_type: string
+          content: string
+          created_at: string
+          customer_id: string
+          direction: string
+          id: string
+          subject: string | null
+          ticket_id: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          communication_type: string
+          content: string
+          created_at?: string
+          customer_id: string
+          direction: string
+          id?: string
+          subject?: string | null
+          ticket_id?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          communication_type?: string
+          content?: string
+          created_at?: string
+          customer_id?: string
+          direction?: string
+          id?: string
+          subject?: string | null
+          ticket_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_communications_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      internal_notes: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          note: string
+          ticket_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          note: string
+          ticket_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          note?: string
+          ticket_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "internal_notes_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       inventory: {
         Row: {
@@ -190,6 +333,233 @@ export type Database = {
           },
         ]
       }
+      kb_articles: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          created_by: string | null
+          helpful_count: number | null
+          id: string
+          is_published: boolean | null
+          not_helpful_count: number | null
+          tags: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          content: string
+          created_at?: string
+          created_by?: string | null
+          helpful_count?: number | null
+          id?: string
+          is_published?: boolean | null
+          not_helpful_count?: number | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          helpful_count?: number | null
+          id?: string
+          is_published?: boolean | null
+          not_helpful_count?: number | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      milestones: {
+        Row: {
+          created_at: string | null
+          due_date: string | null
+          id: string
+          name: string
+          project_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          name: string
+          project_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          name?: string
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestones_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_alerts: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          project_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          project_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_alerts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_budgets: {
+        Row: {
+          amount: number
+          created_at: string | null
+          id: string
+          project_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          id?: string
+          project_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_budgets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          name: string
+          owner_id: string
+          start_date: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          owner_id?: string
+          start_date?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          owner_id?: string
+          start_date?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      resources: {
+        Row: {
+          cost: number | null
+          id: string
+          name: string
+          task_id: string | null
+          type: string | null
+        }
+        Insert: {
+          cost?: number | null
+          id?: string
+          name: string
+          task_id?: string | null
+          type?: string | null
+        }
+        Update: {
+          cost?: number | null
+          id?: string
+          name?: string
+          task_id?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resources_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sla_rules: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean | null
+          priority: string
+          resolution_time_hours: number
+          response_time_hours: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          priority: string
+          resolution_time_hours: number
+          response_time_hours: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          priority?: string
+          resolution_time_hours?: number
+          response_time_hours?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stock_transactions: {
         Row: {
           created_at: string
@@ -249,6 +619,153 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      task_dependencies: {
+        Row: {
+          depends_on: string
+          task_id: string
+        }
+        Insert: {
+          depends_on: string
+          task_id: string
+        }
+        Update: {
+          depends_on?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_dependencies_depends_on_fkey"
+            columns: ["depends_on"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_dependencies_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_resources: {
+        Row: {
+          resource_id: string
+          task_id: string
+        }
+        Insert: {
+          resource_id: string
+          task_id: string
+        }
+        Update: {
+          resource_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_resources_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_resources_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          created_at: string | null
+          dependency_id: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          name: string
+          project_id: string | null
+          start_date: string | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dependency_id?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          project_id?: string | null
+          start_date?: string | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dependency_id?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          project_id?: string | null
+          start_date?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_dependency_id_fkey"
+            columns: ["dependency_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tickets: {
+        Row: {
+          assigned_to: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          priority: string | null
+          status: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          priority?: string | null
+          status?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          priority?: string | null
+          status?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       warehouses: {
         Row: {

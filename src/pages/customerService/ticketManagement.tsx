@@ -3,59 +3,90 @@
 
 import React, { useState } from 'react';
 import { useTickets } from './hooks/useTickets';
+import { createTicket, addInternalNote } from '@/lib/customerService/tickets';
 import TicketList from './components/TicketList';
 import TicketDetails from './components/TicketDetails';
 import TicketForm from './components/TicketForm';
 import TicketNotes from './components/TicketNotes';
 import { Ticket, InternalNote } from './types';
+import { useToast } from '@/hooks/use-toast';
 
 const TicketManagementPage: React.FC = () => {
-  const { tickets, loading, error, setTickets } = useTickets();
+  const { tickets, loading, error, setTickets, refetch } = useTickets();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const { toast } = useToast();
 
   const handleSelectTicket = (ticket: Ticket) => {
     setSelectedTicket(ticket);
     setShowForm(false);
   };
 
-  const handleCreateTicket = (ticketData: Partial<Ticket>) => {
-    // TODO: replace with API call to create ticket
-    const newTicket: Ticket = {
-      ...ticketData,
-      id: Math.random().toString(36).substr(2, 9),
-      status: ticketData.status || 'Open',
-      priority: ticketData.priority || 'Medium',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      customerId: 'cust-temp', // replace with real customer ID
-      internalNotes: [],
-      assignedTo: undefined,
-    } as Ticket;
-
-    setTickets([newTicket, ...tickets]);
-    setSelectedTicket(newTicket);
-    setShowForm(false);
+  const handleCreateTicket = async (ticketData: Partial<Ticket>) => {
+    try {
+      await createTicket(ticketData);
+      await refetch();
+      setShowForm(false);
+      toast({
+        title: "Success",
+        description: "Ticket created successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create ticket",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleAddNote = (noteText: string) => {
+  const handleAddNote = async (noteText: string) => {
     if (!selectedTicket) return;
-    const newNote: InternalNote = {
-      id: Math.random().toString(36).substr(2, 9),
-      ticketId: selectedTicket.id,
-      author: 'Support Agent', // replace with logged-in user
-      note: noteText,
-      createdAt: new Date().toISOString(),
-    };
-    const updatedTicket = {
-      ...selectedTicket,
-      internalNotes: [...(selectedTicket.internalNotes || []), newNote],
-      updatedAt: new Date().toISOString(),
-    };
-    setSelectedTicket(updatedTicket);
-    setTickets(
-      tickets.map((t) => (t.id === updatedTicket.id ? updatedTicket : t))
-    );
+    
+    try {
+      await addInternalNote(selectedTicket.id, noteText);
+      
+      // Refetch tickets and update selected ticket
+      await refetch();
+      
+      // We need to wait for the state to update, so let's use a timeout
+      // or better yet, fetch the specific ticket with notes
+      const { getTicketWithNotes } = await import('@/lib/customerService/tickets');
+      const updatedTicket = await getTicketWithNotes(selectedTicket.id);
+      
+      // Convert the database response to our Ticket type
+      const ticketWithNotes: Ticket = {
+        id: updatedTicket.id,
+        title: updatedTicket.title,
+        description: updatedTicket.description || '',
+        status: updatedTicket.status as Ticket['status'],
+        priority: updatedTicket.priority as Ticket['priority'],
+        createdAt: updatedTicket.created_at,
+        updatedAt: updatedTicket.updated_at || updatedTicket.created_at,
+        customerId: 'customer',
+        assignedTo: updatedTicket.assigned_to,
+        internalNotes: updatedTicket.internal_notes?.map((note: any) => ({
+          id: note.id,
+          ticketId: note.ticket_id,
+          author: note.created_by || 'Unknown',
+          note: note.note,
+          createdAt: note.created_at
+        })) || []
+      };
+      
+      setSelectedTicket(ticketWithNotes);
+      
+      toast({
+        title: "Success",
+        description: "Note added successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add note",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) return <p>Loading tickets...</p>;
