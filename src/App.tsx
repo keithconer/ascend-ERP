@@ -7,10 +7,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import InventoryManagement from "./pages/inventory/InventoryManagement";
 import ProjectManagement from "./pages/projects/ProjectManagement"; // Module 9 - Project Management
-import CustomerService from './pages/customerService/CustomerService'; //Module 2 - Customer Service
-import EcommerceManagement from './pages/ecommerce/EcommerceManagement'; // Module 6 - E-commerce Integration
-import ProjectManagement from "./pages/projects/ProjectManagement";
-import CustomerService from './pages/customerService/CustomerService';
+import CustomerService from "./pages/customerService/CustomerService"; //Module 2 - Customer Service
+import EcommerceManagement from "./pages/eCommerce/EcommerceManagement"; // Module 6 - E-commerce Integration
 import Procurement from './pages/Procurement/proc1';
 import NotFound from "./pages/NotFound";
 
