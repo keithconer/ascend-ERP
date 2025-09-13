@@ -6,6 +6,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Index from "./pages/Index";
 import InventoryManagement from "./pages/inventory/InventoryManagement";
+import ProjectManagement from "./pages/projects/ProjectManagement"; // Module 9 - Project Management
+import CustomerService from './pages/customerService/CustomerService'; //Module 2 - Customer Service
+import EcommerceManagement from './pages/ecommerce/EcommerceManagement'; // Module 6 - E-commerce Integration
 import ProjectManagement from "./pages/projects/ProjectManagement";
 import CustomerService from './pages/customerService/CustomerService';
 import Procurement from './pages/Procurement/proc1';
@@ -24,8 +27,13 @@ const App = () => (
           <Route path="/inventory" element={<InventoryManagement />} />
           <Route path="/projects" element={<ProjectManagement />} />
           <Route path="/helpdesk" element={<CustomerService />} />
+
+          <Route path="/ecommerce" element={<EcommerceManagement />} />
+          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+
           <Route path="/procurement" element={<Procurement />} />
           {/* Catch-all route for 404 */}
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
