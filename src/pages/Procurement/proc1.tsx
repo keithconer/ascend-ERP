@@ -6,14 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus } from "lucide-react";
 
 // Placeholder subcomponents (replace with real ones later)
-import { PurchaseRequisition } from "@/components/procurement/PurchaseRequisition";
-import { SupplierManagement } from "@/components/procurement/SupplierManagement";
-import { PurchaseOrders } from "@/components/procurement/PurchaseOrders";
-import { GoodsReceipts } from "@/components/procurement/GoodsReceipts";
-import { AddRequisitionDialog } from "@/components/procurement/AddRequisitionDialog";
+// import { PurchaseRequisition } from "@/components/procurement/PurchaseRequisition";
+// import { SupplierManagement } from "@/components/procurement/SupplierManagement";
+// import { PurchaseOrders } from "@/components/procurement/PurchaseOrders";
+// import { GoodsReceipts } from "@/components/procurement/GoodsReceipts";
+// import { AddRequisitionDialog } from "@/components/procurement/AddRequisitionDialog";
 
-export default function ProcurementManagement() {
-  const [showAddRequisition, setShowAddRequisition] = useState(false);
+const ProcurementManagement: React.FC = () => {
+  const [showAddRequisition, setShowAddRequisition] = useState < boolean > (false);
 
   return (
     <ERPLayout>
@@ -102,8 +102,13 @@ export default function ProcurementManagement() {
         </Tabs>
 
         {/* Dialog for Adding Requisition */}
-        <AddRequisitionDialog open={showAddRequisition} onOpenChange={setShowAddRequisition} />
+        <AddRequisitionDialog
+          open={showAddRequisition}
+          onOpenChange={(open: boolean) => setShowAddRequisition(open)}
+        />
       </div>
     </ERPLayout>
   );
-}
+};
+
+export default ProcurementManagement;
