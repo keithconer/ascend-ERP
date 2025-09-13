@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import InventoryManagement from "./pages/inventory/InventoryManagement";
 import ProjectManagement from "./pages/projects/ProjectManagement"; // Module 9 - Project Management
 import CustomerService from './pages/customerService/CustomerService'; //Module 2 - Customer Service
+import EcommerceManagement from './pages/ecommerce/EcommerceManagement'; // Module 6 - E-commerce Integration
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/inventory" element={<InventoryManagement />} />
           <Route path="/projects" element={<ProjectManagement />} />
           <Route path="/helpdesk" element={<CustomerService />} />
+          <Route path="/ecommerce" element={<EcommerceManagement />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
