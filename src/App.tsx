@@ -9,6 +9,7 @@ import InventoryManagement from "./pages/inventory/InventoryManagement";
 import ProjectManagement from "./pages/projects/ProjectManagement"; // Module 9 - Project Management
 import CustomerService from './pages/customerService/CustomerService'; //Module 2 - Customer Service
 import EmployeeRecordManagement from './pages/HR/EmployeeRecordManagement';//module 10 - HR Management
+import EcommerceManagement from "./pages/eCommerce/EcommerceManagement";
 import Procurement from './pages/Procurement/proc1';
 import NotFound from "./pages/NotFound";
 
@@ -27,7 +28,6 @@ const App = () => (
           <Route path="/helpdesk" element={<CustomerService />} />
 
           <Route path="/hr" element={<EmployeeRecordManagement />} />
-
 
           <Route path="/ecommerce" element={<EcommerceManagement />} />
 
