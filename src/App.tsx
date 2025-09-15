@@ -7,8 +7,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import InventoryManagement from "./pages/inventory/InventoryManagement";
 import ProjectManagement from "./pages/projects/ProjectManagement"; // Module 9 - Project Management
-import CustomerService from "./pages/customerService/CustomerService"; //Module 2 - Customer Service
-import EcommerceManagement from "./pages/eCommerce/EcommerceManagement"; // Module 6 - E-commerce Integration
+import CustomerService from './pages/customerService/CustomerService'; //Module 2 - Customer Service
+import EmployeeRecordManagement from './pages/HR/EmployeeRecordManagement';//module 10 - HR Management
 import Procurement from './pages/Procurement/proc1';
 import NotFound from "./pages/NotFound";
 
@@ -26,7 +26,11 @@ const App = () => (
           <Route path="/projects" element={<ProjectManagement />} />
           <Route path="/helpdesk" element={<CustomerService />} />
 
+          <Route path="/hr" element={<EmployeeRecordManagement />} />
+
+
           <Route path="/ecommerce" element={<EcommerceManagement />} />
+
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
 
           <Route path="/procurement" element={<Procurement />} />
