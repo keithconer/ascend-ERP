@@ -26,6 +26,9 @@ type NewTask = TablesInsert<"tasks">;
 type Employee = Tables<"employees">;
 type Equipment = Tables<"equipment">;
 
+type TaskAssignment = Tables<"task_assignments">;
+type NewTaskAssignment = TablesInsert<"task_assignments">;
+
 export default function ProjectManagement() {
   const qc = useQueryClient();
 
@@ -120,6 +123,13 @@ export default function ProjectManagement() {
   });
   
   // Mutations
+  const createTaskAssignment = useMutation({
+    mutationFn: async (payload: NewTaskAssignment) => {
+      const { error } = await supabaseProject.from("task_assignments").insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["task_assignments"] }),
+  });
   const createProject = useMutation({
     mutationFn: async (payload: NewProject) => {
       const { error } = await supabaseProject.from("projects").insert(payload);
@@ -214,7 +224,7 @@ export default function ProjectManagement() {
           <div>
             <h1 className="text-3xl font-bold">Project Management</h1>
             <p className="text-muted-foreground">
-              9.1.a — Define Timelines & Phases | 9.1.b — WBS | 9.1.c — Task Start/End Dates
+              Manage Project and allocate resources
             </p>
           </div>
           <Button onClick={() => setOpenAddProject(true)}>
@@ -264,10 +274,7 @@ export default function ProjectManagement() {
             taskId={openResourceDialogForTask}
             employees={employeesData}
             equipment={equipmentData}
-            onSave={(assignment) => {
-              console.log("Resource assigned:", assignment);
-              // Optionally update local state or show a toast
-            }}
+            onSave={(assignment: NewTaskAssignment) => createTaskAssignment.mutate(assignment)}
           />
         )}
 

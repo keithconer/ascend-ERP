@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 type Project = Tables<"projects">;
 type Phase = Tables<"project_phases">;
 type Task = Tables<"tasks">;
+type TaskAssignment = Tables<"task_assignments">;
 
 interface ProjectCardProps {
   project: Project;
@@ -13,7 +14,7 @@ interface ProjectCardProps {
   dependencies: { task_id: string; depends_on_task_id: string }[];
   onAddPhase: (projectId: string) => void;
   onAddTask: (phaseId: string) => void;
-  onAssignResources: (taskId: string) => void; // NEW
+  onAssignResources: (taskId: string) => void;
 }
 
 export default function ProjectCard({
