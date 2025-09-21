@@ -12,38 +12,49 @@ import { WarehouseManagement } from '@/components/inventory/WarehouseManagement'
 import { InventoryAlerts } from '@/components/inventory/InventoryAlerts';
 import { AddItemDialog } from '@/components/inventory/AddItemDialog';
 
+type InventoryItem = {
+  quantity: number;
+  items: {
+    unit_price: number;
+  };
+};
+
 export default function InventoryManagement() {
   const [showAddItem, setShowAddItem] = useState(false);
 
   const { data: inventoryStats } = useQuery({
     queryKey: ['inventory-stats'],
     queryFn: async () => {
-      const [lowStockCount, outOfStockCount, totalValue] = await Promise.all([
-        supabase
-          .from('inventory_alerts')
-          .select('*', { count: 'exact', head: true })
-          .eq('alert_type', 'low_stock')
-          .eq('is_acknowledged', false),
-        supabase
-          .from('inventory_alerts')
-          .select('*', { count: 'exact', head: true })
-          .eq('alert_type', 'out_of_stock')
-          .eq('is_acknowledged', false),
-        supabase
-          .from('inventory')
-          .select(`
-            quantity,
-            items(unit_price)
-          `)
-      ]);
+      // Low stock count
+      const { count: lowStockCount } = await supabase
+        .from('inventory_alerts')
+        .select('*', { count: 'exact', head: true })
+        .eq('alert_type', 'low_stock')
+        .eq('is_acknowledged', false);
 
-      const totalInventoryValue = totalValue.data?.reduce((sum, item) => {
-        return sum + (item.quantity * (item.items?.unit_price || 0));
-      }, 0) || 0;
+      // Out of stock count
+      const { count: outOfStockCount } = await supabase
+        .from('inventory_alerts')
+        .select('*', { count: 'exact', head: true })
+        .eq('alert_type', 'out_of_stock')
+        .eq('is_acknowledged', false);
+
+      // Total inventory value
+      const { data: inventoryItems } = await supabase
+        .from('inventory')
+        .select(`
+          quantity,
+          items:items(unit_price)
+        `) as { data: InventoryItem[] | null };
+
+      const totalInventoryValue =
+        inventoryItems?.reduce((sum, item) => {
+          return sum + (item.quantity * (item.items?.unit_price || 0));
+        }, 0) || 0;
 
       return {
-        lowStock: lowStockCount.count || 0,
-        outOfStock: outOfStockCount.count || 0,
+        lowStock: lowStockCount || 0,
+        outOfStock: outOfStockCount || 0,
         totalValue: totalInventoryValue,
       };
     },

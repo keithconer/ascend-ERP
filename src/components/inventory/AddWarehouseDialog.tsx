@@ -13,6 +13,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 
+// ✅ Define a type for inserting a warehouse
+interface WarehouseInsert {
+  name: string;
+  address?: string | null;
+  description?: string | null;
+}
+
 interface AddWarehouseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,11 +40,14 @@ export const AddWarehouseDialog = ({ open, onOpenChange }: AddWarehouseDialogPro
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from('warehouses').insert({
-        name: formData.name,
-        address: formData.address || null,
-        description: formData.description || null,
-      });
+      // ✅ Use the WarehouseInsert type here
+      const { error } = await supabase
+        .from<WarehouseInsert>('warehouses')
+        .insert({
+          name: formData.name,
+          address: formData.address || null,
+          description: formData.description || null,
+        });
 
       if (error) throw error;
 
@@ -46,13 +56,7 @@ export const AddWarehouseDialog = ({ open, onOpenChange }: AddWarehouseDialogPro
         description: 'Warehouse added successfully!',
       });
 
-      // Reset form
-      setFormData({
-        name: '',
-        address: '',
-        description: '',
-      });
-
+      setFormData({ name: '', address: '', description: '' });
       queryClient.invalidateQueries({ queryKey: ['warehouses'] });
       onOpenChange(false);
     } catch (error: any) {
