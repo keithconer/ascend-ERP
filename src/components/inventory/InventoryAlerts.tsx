@@ -16,6 +16,46 @@ export const InventoryAlerts = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // ======================================================
+  // a. 🔑 Set Minimum and Maximum Quantity Thresholds (Report)
+  // ======================================================
+  const { data: inventoryReport } = useQuery({
+    queryKey: ['inventory-report'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('inventory')
+        .select(`
+          *,
+          items(name, sku, min_threshold, max_threshold, unit_price),
+          warehouses(name)
+        `);
+
+      if (error) throw error;
+
+      const lowStock = data?.filter(
+        (item) => item.quantity <= item.items?.min_threshold && item.quantity > 0
+      ) || [];
+
+      const outOfStock = data?.filter(
+        (item) => item.quantity === 0
+      ) || [];
+
+      const overstock = data?.filter(
+        (item) => item.quantity >= item.items?.max_threshold
+      ) || [];
+
+      return {
+        lowStock,
+        outOfStock,
+        overstock,
+        totalItems: data?.length || 0,
+      };
+    },
+  });
+
+  // ======================================================
+  // b. 🔑 Generate Alerts for low stock or out-of-stock items
+  // ======================================================
   const { data: alerts, isLoading } = useQuery({
     queryKey: ['inventory-alerts'],
     queryFn: async () => {
@@ -27,43 +67,9 @@ export const InventoryAlerts = () => {
           warehouses(name)
         `)
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
       return data || [];
-    },
-  });
-
-  const { data: inventoryReport } = useQuery({
-    queryKey: ['inventory-report'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('inventory')
-        .select(`
-          *,
-          items(name, sku, min_threshold, max_threshold, unit_price),
-          warehouses(name)
-        `);
-      
-      if (error) throw error;
-      
-      const lowStock = data?.filter(item => 
-        item.quantity <= item.items?.min_threshold && item.quantity > 0
-      ) || [];
-      
-      const outOfStock = data?.filter(item => 
-        item.quantity === 0
-      ) || [];
-      
-      const overstock = data?.filter(item => 
-        item.quantity >= item.items?.max_threshold
-      ) || [];
-
-      return {
-        lowStock,
-        outOfStock,
-        overstock,
-        totalItems: data?.length || 0,
-      };
     },
   });
 
@@ -91,6 +97,33 @@ export const InventoryAlerts = () => {
     }
   };
 
+  // ======================================================
+  // c. 🔑 Automate re-order requests or generate purchase orders
+  // ======================================================
+  const handleAutoReorder = async (itemId: string, quantity: number) => {
+    const { error } = await supabase.from('purchase_orders').insert({
+      item_id: itemId,
+      quantity,
+      status: 'pending',
+    });
+
+    if (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to create purchase order.',
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Reorder Created',
+        description: `Purchase order placed for ${quantity} units.`,
+      });
+    }
+  };
+
+  // ======================================================
+  // UI Helpers
+  // ======================================================
   const getAlertIcon = (type: string) => {
     switch (type) {
       case 'low_stock':
@@ -121,6 +154,9 @@ export const InventoryAlerts = () => {
     }
   };
 
+  // ======================================================
+  // Render UI
+  // ======================================================
   if (isLoading) {
     return (
       <Card>
@@ -136,12 +172,12 @@ export const InventoryAlerts = () => {
     );
   }
 
-  const activeAlerts = alerts?.filter(alert => !alert.is_acknowledged) || [];
-  const acknowledgedAlerts = alerts?.filter(alert => alert.is_acknowledged) || [];
+  const activeAlerts = alerts?.filter((alert) => !alert.is_acknowledged) || [];
+  const acknowledgedAlerts = alerts?.filter((alert) => alert.is_acknowledged) || [];
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
+      {/* Report Summary (Thresholds) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
@@ -200,7 +236,7 @@ export const InventoryAlerts = () => {
         </Card>
       </div>
 
-      {/* Active Alerts */}
+      {/* Alerts */}
       <Card>
         <CardHeader>
           <CardTitle>Active Alerts</CardTitle>
@@ -226,14 +262,25 @@ export const InventoryAlerts = () => {
                     </p>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleAcknowledgeAlert(alert.id)}
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Acknowledge
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAcknowledgeAlert(alert.id)}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Acknowledge
+                  </Button>
+                  {alert.alert_type === 'out_of_stock' && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleAutoReorder(alert.item_id, 50)} // reorder 50 units
+                    >
+                      Auto Reorder
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
             {activeAlerts.length === 0 && (
@@ -245,7 +292,7 @@ export const InventoryAlerts = () => {
         </CardContent>
       </Card>
 
-      {/* Recent Acknowledged Alerts */}
+      {/* Recently Acknowledged Alerts */}
       {acknowledgedAlerts.length > 0 && (
         <Card>
           <CardHeader>

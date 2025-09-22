@@ -1,263 +1,183 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+// AddTransactionDialog.tsx
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
 
 interface AddTransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  transactionTypes: string[];
+  onTransactionAdded: () => void;
 }
 
-export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialogProps) => {
-  const [formData, setFormData] = useState({
-    item_id: '',
-    warehouse_id: '',
-    transaction_type: '',
-    quantity: '',
-    reference_number: '',
-    notes: '',
-    expiration_date: '',
-    unit_cost: '',
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export const AddTransactionDialog = ({
+  open,
+  onOpenChange,
+  transactionTypes,
+  onTransactionAdded,
+}: AddTransactionDialogProps) => {
+  const [transactionType, setTransactionType] = useState('stock-in');
+  const [itemId, setItemId] = useState('');
+  const [warehouseId, setWarehouseId] = useState('');
+  const [quantity, setQuantity] = useState<string>(''); // string for free typing
+  const [unitCost, setUnitCost] = useState<string>(''); // string for free typing
+  const [reference, setReference] = useState('');
+  const [expirationDate, setExpirationDate] = useState('');
 
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const [items, setItems] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
 
-  // Fetch active items
-  const { data: items } = useQuery({
-    queryKey: ['active-items'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('items')
-        .select('id, name, sku')
-        .eq('is_active', true)
-        .order('name');
+  // Fetch items & warehouses
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: itemsData } = await supabase.from('items').select('id, name');
+      const { data: warehousesData } = await supabase.from('warehouses').select('id, name');
+      if (itemsData) setItems(itemsData);
+      if (warehousesData) setWarehouses(warehousesData);
+    };
+    fetchData();
+  }, []);
 
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  const handleSave = async () => {
+    const qtyNumber = Number(quantity);
+    const costNumber = Number(unitCost);
 
-  // Fetch active warehouses
-  const { data: warehouses } = useQuery({
-    queryKey: ['active-warehouses'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('warehouses')
-        .select('id, name')
-        .eq('is_active', true)
-        .order('name');
+    if (!itemId || !warehouseId || qtyNumber <= 0 || costNumber < 0) {
+      alert('Please fill all fields with valid numbers');
+      return;
+    }
 
-      if (error) throw error;
-      return data || [];
-    },
-  });
+    const totalCost = qtyNumber * costNumber;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
+    // Notes = Warehouse Name
+    const warehouseName = warehouses.find((w) => w.id === warehouseId)?.name || '';
+    const finalNotes = warehouseName;
 
-    try {
-      const unitCost = parseFloat(formData.unit_cost) || 0;
-      const quantity = parseInt(formData.quantity) || 0;
-      const totalCost = unitCost * quantity;
+    const { error } = await supabase.from('stock_transactions').insert([
+      {
+        transaction_type: transactionType,
+        item_id: itemId,
+        warehouse_id: warehouseId,
+        quantity: qtyNumber,
+        unit_cost: costNumber,
+        total_cost: totalCost,
+        reference_number: reference,
+        notes: finalNotes,
+        expiration_date: expirationDate || null,
+      },
+    ]);
 
-      const { error } = await supabase.from('stock_transactions').insert({
-        item_id: formData.item_id,
-        warehouse_id: formData.warehouse_id,
-        transaction_type: formData.transaction_type,
-        quantity: quantity,
-        reference_number: formData.reference_number || null,
-        notes: formData.notes || null,
-        expiration_date: formData.expiration_date || null,
-        unit_cost: unitCost > 0 ? unitCost : null,
-        total_cost: totalCost > 0 ? totalCost : null,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: 'Success',
-        description: 'Transaction recorded successfully!',
-      });
-
-      setFormData({
-        item_id: '',
-        warehouse_id: '',
-        transaction_type: '',
-        quantity: '',
-        reference_number: '',
-        notes: '',
-        expiration_date: '',
-        unit_cost: '',
-      });
-
-      queryClient.invalidateQueries({ queryKey: ['stock-transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['items'] });
-      queryClient.invalidateQueries({ queryKey: ['inventory-stats'] });
+    if (!error) {
+      onTransactionAdded();
       onOpenChange(false);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to record transaction. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
+      setTransactionType('stock-in');
+      setItemId('');
+      setWarehouseId('');
+      setQuantity('');
+      setUnitCost('');
+      setReference('');
+      setExpirationDate('');
+    } else {
+      console.error('Error adding transaction:', error.message);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Stock Transaction</DialogTitle>
+          <DialogTitle>Add Transaction</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="item">Item *</Label>
-              <Select
-                value={formData.item_id}
-                onValueChange={(value) => setFormData({ ...formData, item_id: value })}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select item" />
-                </SelectTrigger>
-                <SelectContent>
-                  {items?.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name} ({item.sku})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Transaction Type */}
+        <label className="block mt-2 mb-1 font-medium">Transaction Type</label>
+        <Select value={transactionType} onValueChange={setTransactionType}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select transaction type" />
+          </SelectTrigger>
+          <SelectContent>
+            {transactionTypes.map((type) => (
+              <SelectItem key={type} value={type}>
+                {type}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-            <div className="space-y-2">
-              <Label htmlFor="warehouse">Warehouse *</Label>
-              <Select
-                value={formData.warehouse_id}
-                onValueChange={(value) => setFormData({ ...formData, warehouse_id: value })}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select warehouse" />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses?.map((warehouse) => (
-                    <SelectItem key={warehouse.id} value={warehouse.id}>
-                      {warehouse.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+        {/* Item */}
+        <label className="block mt-2 mb-1 font-medium">Item</label>
+        <Select value={itemId} onValueChange={setItemId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select item" />
+          </SelectTrigger>
+          <SelectContent>
+            {items.map((item) => (
+              <SelectItem key={item.id} value={item.id}>
+                {item.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="transaction_type">Transaction Type *</Label>
-              <Select
-                value={formData.transaction_type}
-                onValueChange={(value) => setFormData({ ...formData, transaction_type: value })}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="stock-in">Stock In</SelectItem>
-                  <SelectItem value="stock-out">Stock Out</SelectItem>
-                  <SelectItem value="transfer">Transfer</SelectItem>
-                  <SelectItem value="adjustment">Adjustment</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Warehouse */}
+        <label className="block mt-2 mb-1 font-medium">Warehouse</label>
+        <Select value={warehouseId} onValueChange={setWarehouseId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select warehouse" />
+          </SelectTrigger>
+          <SelectContent>
+            {warehouses.map((wh) => (
+              <SelectItem key={wh.id} value={wh.id}>
+                {wh.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity *</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="1"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                placeholder="Enter quantity"
-                required
-              />
-            </div>
-          </div>
+        {/* Quantity */}
+        <Input
+          type="text"
+          placeholder="Quantity"
+          value={quantity}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (/^\d*$/.test(val)) setQuantity(val); // only digits
+          }}
+        />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="reference_number">Reference Number</Label>
-              <Input
-                id="reference_number"
-                value={formData.reference_number}
-                onChange={(e) => setFormData({ ...formData, reference_number: e.target.value })}
-                placeholder="PO#, Invoice#, etc."
-              />
-            </div>
+        {/* Cost */}
+        <Input
+          type="text"
+          placeholder="Unit Cost"
+          value={unitCost}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (/^\d*\.?\d*$/.test(val)) setUnitCost(val); // digits + optional dot
+          }}
+        />
 
-            <div className="space-y-2">
-              <Label htmlFor="unit_cost">Unit Cost ($)</Label>
-              <Input
-                id="unit_cost"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.unit_cost}
-                onChange={(e) => setFormData({ ...formData, unit_cost: e.target.value })}
-                placeholder="0.00"
-              />
-            </div>
-          </div>
+        {/* Expiration Date */}
+        <label className="block mt-2 mb-1 font-medium">Expiration Date</label>
+        <Input
+          type="date"
+          value={expirationDate}
+          onChange={(e) => setExpirationDate(e.target.value)}
+        />
 
-          <div className="space-y-2">
-            <Label htmlFor="expiration_date">Expiration Date</Label>
-            <Input
-              id="expiration_date"
-              type="date"
-              value={formData.expiration_date}
-              onChange={(e) => setFormData({ ...formData, expiration_date: e.target.value })}
-            />
-          </div>
+        {/* Reference */}
+        <label className="block mt-2 mb-1 font-medium">Reference Number</label>
+        <Input
+          placeholder="Reference Number"
+          value={reference}
+          onChange={(e) => setReference(e.target.value)}
+        />
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              placeholder="Additional notes about this transaction"
-              rows={3}
-            />
-          </div>
-
-          <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Recording...' : 'Record Transaction'}
-            </Button>
-          </div>
-        </form>
+        <Button onClick={handleSave} className="mt-4 w-full">
+          Save Transaction
+        </Button>
       </DialogContent>
     </Dialog>
   );
