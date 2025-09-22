@@ -5,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import InventoryManagement from "./pages/inventory/InventoryManagement";
+import ProcurementPage from "./pages/Procurement/ProcurementPage";
 import NotFound from "./pages/NotFound";
+import { ERPLayout } from "@/components/erp/ERPLayout";
 
 const queryClient = new QueryClient();
 
@@ -17,7 +19,22 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/inventory" element={<InventoryManagement />} />
+          <Route
+            path="/inventory"
+            element={
+              <ERPLayout>
+                <InventoryManagement />
+              </ERPLayout>
+            }
+          />
+          <Route
+            path="/procurement"
+            element={
+              <ERPLayout>
+                <ProcurementPage />
+              </ERPLayout>
+            }
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
