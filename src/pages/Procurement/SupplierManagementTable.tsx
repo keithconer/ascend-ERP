@@ -29,11 +29,20 @@ export const SupplierManagementTable = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [addSupplierDialogOpen, setAddSupplierDialogOpen] = useState(false);
   const [deleteSupplierDialogOpen, setDeleteSupplierDialogOpen] = useState(false);
-  const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
+  const [editSupplierDialogOpen, setEditSupplierDialogOpen] = useState(false);
 
+  const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
+  const [supplierToEdit, setSupplierToEdit] = useState<Supplier | null>(null);
+
+  // New supplier form state
   const [newSupplierName, setNewSupplierName] = useState("");
   const [newSupplierContactInfo, setNewSupplierContactInfo] = useState("");
   const [newSupplierIsActive, setNewSupplierIsActive] = useState(true);
+
+  // Edit supplier form state
+  const [editSupplierName, setEditSupplierName] = useState("");
+  const [editSupplierContactInfo, setEditSupplierContactInfo] = useState("");
+  const [editSupplierIsActive, setEditSupplierIsActive] = useState(true);
 
   useEffect(() => {
     fetchSuppliers();
@@ -52,6 +61,7 @@ export const SupplierManagementTable = () => {
     }
   };
 
+  // Add Supplier
   const handleAddSupplier = async () => {
     if (!newSupplierName.trim() || !newSupplierContactInfo.trim()) {
       alert("Please fill in all fields.");
@@ -69,7 +79,7 @@ export const SupplierManagementTable = () => {
           is_active: newSupplierIsActive,
         },
       ])
-      .select(); // IMPORTANT: Select to return inserted row
+      .select();
 
     if (error) {
       console.error("Error adding supplier:", error.message);
@@ -81,6 +91,7 @@ export const SupplierManagementTable = () => {
     }
   };
 
+  // Delete Supplier
   const handleDeleteClick = (supplier: Supplier) => {
     setSupplierToDelete(supplier);
     setDeleteSupplierDialogOpen(true);
@@ -102,6 +113,41 @@ export const SupplierManagementTable = () => {
 
     setDeleteSupplierDialogOpen(false);
     setSupplierToDelete(null);
+  };
+
+  // Edit Supplier
+  const handleEditClick = (supplier: Supplier) => {
+    setSupplierToEdit(supplier);
+    setEditSupplierName(supplier.name);
+    setEditSupplierContactInfo(supplier.contact_info);
+    setEditSupplierIsActive(supplier.is_active);
+    setEditSupplierDialogOpen(true);
+  };
+
+  const handleUpdateSupplier = async () => {
+    if (!supplierToEdit) return;
+
+    if (!editSupplierName.trim() || !editSupplierContactInfo.trim()) {
+      alert("Please fill in all fields.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("suppliers")
+      .update({
+        name: editSupplierName,
+        contact_info: editSupplierContactInfo,
+        is_active: editSupplierIsActive,
+      })
+      .eq("id", supplierToEdit.id);
+
+    if (error) {
+      console.error("Error updating supplier:", error.message);
+    } else {
+      await fetchSuppliers();
+      setEditSupplierDialogOpen(false);
+      setSupplierToEdit(null);
+    }
   };
 
   return (
@@ -141,7 +187,7 @@ export const SupplierManagementTable = () => {
                 </TableCell>
                 <TableCell>
                   <div className="flex space-x-2">
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="icon" onClick={() => handleEditClick(supplier)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
@@ -210,6 +256,65 @@ export const SupplierManagementTable = () => {
             </Button>
             <Button variant="default" className="w-full" onClick={handleAddSupplier}>
               Add Supplier
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Supplier Dialog */}
+      <Dialog open={editSupplierDialogOpen} onOpenChange={setEditSupplierDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Supplier</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            <div className="flex items-center gap-4">
+              <label className="w-32 text-right font-medium">Name:</label>
+              <input
+                type="text"
+                className="w-full border px-3 py-2 rounded-md"
+                value={editSupplierName}
+                onChange={(e) => setEditSupplierName(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
+              <label className="w-32 text-right font-medium">Contact Info:</label>
+              <input
+                type="text"
+                className="w-full border px-3 py-2 rounded-md"
+                value={editSupplierContactInfo}
+                onChange={(e) => setEditSupplierContactInfo(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
+              <label className="w-32 text-right font-medium">Status:</label>
+              <select
+                className="w-full border px-3 py-2 rounded-md"
+                value={editSupplierIsActive ? "active" : "inactive"}
+                onChange={(e) => setEditSupplierIsActive(e.target.value === "active")}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6 flex justify-between">
+            <Button
+              variant="outline"
+              className="w-full mr-2"
+              onClick={() => {
+                setEditSupplierDialogOpen(false);
+                setSupplierToEdit(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="default" className="w-full" onClick={handleUpdateSupplier}>
+              Save Changes
             </Button>
           </DialogFooter>
         </DialogContent>
