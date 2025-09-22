@@ -1,5 +1,3 @@
-// src/pages/procurement/ViewPurchaseOrderModal.tsx
-
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -13,13 +11,23 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { PurchaseOrder } from "./PurchaseOrderTable"; // reuse your interface
+import { PurchaseOrder } from "./PurchaseOrderTable";
 
 interface ItemRow {
   id: string;
   item_id: { id: string; name: string };
   quantity: number;
   price: number;
+}
+
+interface Warehouse {
+  id: string;
+  name: string;
+}
+
+interface Supplier {
+  id: string;
+  name: string;
 }
 
 interface ViewPurchaseOrderModalProps {
@@ -36,11 +44,25 @@ export default function ViewPurchaseOrderModal({
   onUpdated,
 }: ViewPurchaseOrderModalProps) {
   const [items, setItems] = useState<ItemRow[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [supplier, setSupplier] = useState<Supplier | null>(null);
+
   const { toast } = useToast();
 
+  // Fetch PO items, warehouses, and supplier on open
   useEffect(() => {
-    if (open && purchaseOrder) fetchItems();
+    if (open && purchaseOrder) {
+      fetchItems();
+      fetchWarehouses();
+      fetchSupplier();
+    } else {
+      setItems([]);
+      setWarehouses([]);
+      setSelectedWarehouseId(null);
+      setSupplier(null);
+    }
   }, [open, purchaseOrder]);
 
   async function fetchItems() {
@@ -57,8 +79,56 @@ export default function ViewPurchaseOrderModal({
     }
   }
 
+  async function fetchWarehouses() {
+    const { data, error } = await supabase
+      .from("warehouses")
+      .select("id, name")
+      .order("name", { ascending: true });
+
+    if (error) {
+      toast({ title: "Error fetching warehouses", description: error.message });
+      setWarehouses([]);
+    } else {
+      setWarehouses(data || []);
+      if (data && data.length > 0) {
+        setSelectedWarehouseId(data[0].id);
+      }
+    }
+  }
+
+  // Fetch supplier details separately if missing or incomplete in PO
+  async function fetchSupplier() {
+    // Only fetch if supplier info missing or no name
+    if (!purchaseOrder.supplier?.id || purchaseOrder.supplier?.name) {
+      setSupplier(purchaseOrder.supplier || null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("suppliers")
+      .select("id, name")
+      .eq("id", purchaseOrder.supplier?.id)
+      .single();
+
+    if (error) {
+      // fallback to current supplier or null
+      setSupplier(purchaseOrder.supplier || null);
+    } else {
+      setSupplier(data);
+    }
+  }
+
   async function handleApprove() {
+    if (!selectedWarehouseId) {
+      toast({
+        title: "Warehouse required",
+        description: "Please select a warehouse before approving the purchase order.",
+      });
+      return;
+    }
+
     setLoading(true);
+
     try {
       const { error } = await supabase
         .from("purchase_orders")
@@ -67,15 +137,10 @@ export default function ViewPurchaseOrderModal({
 
       if (error) throw error;
 
-      // Also create stock transactions for each item
-      // Assuming you have a table `stock_transactions` with columns:
-      // item_id, warehouse_id?, transaction_type, quantity, reference_number, date etc.
-      // For simplicity here, you might set warehouse_id or leave out if optional.
-
       const stockItems = items.map((it) => ({
         item_id: it.item_id.id,
-        warehouse_id: null, // or default warehouse or from user input
-        transaction_type: "stock-in", 
+        warehouse_id: selectedWarehouseId,
+        transaction_type: "stock-in",
         quantity: it.quantity,
         reference_number: purchaseOrder.po_number,
         notes: `Receipt from PO ${purchaseOrder.po_number}`,
@@ -84,9 +149,7 @@ export default function ViewPurchaseOrderModal({
         created_at: new Date().toISOString(),
       }));
 
-      const { error: stError } = await supabase
-        .from("stock_transactions")
-        .insert(stockItems);
+      const { error: stError } = await supabase.from("stock_transactions").insert(stockItems);
 
       if (stError) throw stError;
 
@@ -107,17 +170,24 @@ export default function ViewPurchaseOrderModal({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Purchase Order Details</DialogTitle>
-          <DialogDescription>
-            PO {purchaseOrder.po_number}
-          </DialogDescription>
+          <DialogDescription>PO {purchaseOrder.po_number}</DialogDescription>
         </DialogHeader>
 
         <div className="mt-4 space-y-4">
           <div>
-            <p><strong>Supplier:</strong> {purchaseOrder.supplier?.name || "-"}</p>
-            <p><strong>Status:</strong> {purchaseOrder.status}</p>
-            <p><strong>Order Date:</strong> {format(new Date(purchaseOrder.order_date), "PPP")}</p>
-            <p><strong>Notes:</strong> {purchaseOrder.notes || "-"}</p>
+            <p>
+              <strong>Supplier:</strong> {supplier?.name || "-"}
+            </p>
+            <p>
+              <strong>Status:</strong> {purchaseOrder.status}
+            </p>
+            <p>
+              <strong>Order Date:</strong>{" "}
+              {format(new Date(purchaseOrder.order_date), "PPP")}
+            </p>
+            <p>
+              <strong>Notes:</strong> {purchaseOrder.notes || "-"}
+            </p>
           </div>
 
           <div>
@@ -131,6 +201,29 @@ export default function ViewPurchaseOrderModal({
               ))}
             </ul>
           </div>
+
+          {purchaseOrder.status.toLowerCase().trim() !== "approved" && (
+            <div>
+              <label htmlFor="warehouse-select" className="block font-semibold mb-1">
+                Select Warehouse
+              </label>
+              <select
+                id="warehouse-select"
+                className="w-full border rounded px-3 py-2"
+                value={selectedWarehouseId || ""}
+                onChange={(e) => setSelectedWarehouseId(e.target.value)}
+              >
+                {warehouses.length === 0 && (
+                  <option value="">No warehouses available</option>
+                )}
+                {warehouses.map((wh) => (
+                  <option key={wh.id} value={wh.id}>
+                    {wh.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex justify-end gap-2">
