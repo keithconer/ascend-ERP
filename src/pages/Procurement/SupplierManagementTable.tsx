@@ -25,71 +25,35 @@ interface Supplier {
   is_active: boolean;
 }
 
-export const SupplierManagementTable = () => {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [addSupplierDialogOpen, setAddSupplierDialogOpen] = useState(false);
+interface SupplierManagementTableProps {
+  activeSuppliers: Supplier[];
+  onSuppliersChanged: () => void;
+  setShowAddSupplier: (show: boolean) => void;
+  onAddSupplier: (newSupplier: Supplier) => void;
+}
+
+export const SupplierManagementTable = ({
+  activeSuppliers,
+  onSuppliersChanged,
+  setShowAddSupplier,
+  onAddSupplier,
+}: SupplierManagementTableProps) => {
+  const [suppliers, setSuppliers] = useState<Supplier[]>(activeSuppliers || []);
   const [deleteSupplierDialogOpen, setDeleteSupplierDialogOpen] = useState(false);
   const [editSupplierDialogOpen, setEditSupplierDialogOpen] = useState(false);
 
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
   const [supplierToEdit, setSupplierToEdit] = useState<Supplier | null>(null);
 
-  // New supplier form state
-  const [newSupplierName, setNewSupplierName] = useState("");
-  const [newSupplierContactInfo, setNewSupplierContactInfo] = useState("");
-  const [newSupplierIsActive, setNewSupplierIsActive] = useState(true);
-
   // Edit supplier form state
   const [editSupplierName, setEditSupplierName] = useState("");
   const [editSupplierContactInfo, setEditSupplierContactInfo] = useState("");
   const [editSupplierIsActive, setEditSupplierIsActive] = useState(true);
 
+  // Keep suppliers state in sync with activeSuppliers prop
   useEffect(() => {
-    fetchSuppliers();
-  }, []);
-
-  const fetchSuppliers = async () => {
-    const { data, error } = await supabase
-      .from("suppliers")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Failed to fetch suppliers:", error.message);
-    } else {
-      setSuppliers(data || []);
-    }
-  };
-
-  // Add Supplier
-  const handleAddSupplier = async () => {
-    if (!newSupplierName.trim() || !newSupplierContactInfo.trim()) {
-      alert("Please fill in all fields.");
-      return;
-    }
-
-    setAddSupplierDialogOpen(false);
-
-    const { data, error } = await supabase
-      .from("suppliers")
-      .insert([
-        {
-          name: newSupplierName,
-          contact_info: newSupplierContactInfo,
-          is_active: newSupplierIsActive,
-        },
-      ])
-      .select();
-
-    if (error) {
-      console.error("Error adding supplier:", error.message);
-    } else if (data && data.length > 0) {
-      setSuppliers((prev) => [data[0], ...prev]);
-      setNewSupplierName("");
-      setNewSupplierContactInfo("");
-      setNewSupplierIsActive(true);
-    }
-  };
+    setSuppliers(activeSuppliers);
+  }, [activeSuppliers]);
 
   // Delete Supplier
   const handleDeleteClick = (supplier: Supplier) => {
@@ -108,7 +72,7 @@ export const SupplierManagementTable = () => {
     if (error) {
       console.error("Error deleting supplier:", error.message);
     } else {
-      await fetchSuppliers();
+      onSuppliersChanged(); // Notify parent to refresh queries
     }
 
     setDeleteSupplierDialogOpen(false);
@@ -144,9 +108,55 @@ export const SupplierManagementTable = () => {
     if (error) {
       console.error("Error updating supplier:", error.message);
     } else {
-      await fetchSuppliers();
+      onSuppliersChanged(); // Notify parent to refresh queries
       setEditSupplierDialogOpen(false);
       setSupplierToEdit(null);
+    }
+  };
+
+  // Add Supplier Dialog state
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [newSupplierContactInfo, setNewSupplierContactInfo] = useState("");
+  const [newSupplierIsActive, setNewSupplierIsActive] = useState(true);
+  const [addSupplierDialogOpen, setAddSupplierDialogOpen] = useState(false);
+
+  // Open add dialog and sync with parent
+  const openAddSupplierDialog = () => {
+    setAddSupplierDialogOpen(true);
+    setShowAddSupplier(true); // inform parent in case needed
+  };
+
+  const closeAddSupplierDialog = () => {
+    setAddSupplierDialogOpen(false);
+    setShowAddSupplier(false);
+    setNewSupplierName("");
+    setNewSupplierContactInfo("");
+    setNewSupplierIsActive(true);
+  };
+
+  // Add Supplier handler
+  const handleAddSupplier = async () => {
+    if (!newSupplierName.trim() || !newSupplierContactInfo.trim()) {
+      alert("Please fill in all fields.");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("suppliers")
+      .insert([
+        {
+          name: newSupplierName,
+          contact_info: newSupplierContactInfo,
+          is_active: newSupplierIsActive,
+        },
+      ])
+      .select();
+
+    if (error) {
+      console.error("Error adding supplier:", error.message);
+    } else if (data && data.length > 0) {
+      onAddSupplier(data[0]); // Pass new supplier to parent
+      closeAddSupplierDialog();
     }
   };
 
@@ -155,7 +165,7 @@ export const SupplierManagementTable = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-medium">Supplier Management</h2>
-        <Button onClick={() => setAddSupplierDialogOpen(true)}>Add Supplier</Button>
+        <Button onClick={openAddSupplierDialog}>Add Supplier</Button>
       </div>
 
       {/* Table */}
@@ -247,11 +257,7 @@ export const SupplierManagementTable = () => {
           </div>
 
           <DialogFooter className="mt-6 flex justify-between">
-            <Button
-              variant="outline"
-              className="w-full mr-2"
-              onClick={() => setAddSupplierDialogOpen(false)}
-            >
+            <Button variant="outline" className="w-full mr-2" onClick={closeAddSupplierDialog}>
               Cancel
             </Button>
             <Button variant="default" className="w-full" onClick={handleAddSupplier}>

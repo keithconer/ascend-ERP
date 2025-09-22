@@ -13,6 +13,21 @@ import { PurchaseOrderManagement } from "./PurchaseOrderManagement";
 import { GoodsReceiptMatching } from "./GoodsReceiptMatching";
 import { AddRequisitionDialog } from "./AddRequisitionDialog";
 
+/**
+ * MOCK / placeholder Inventory update function.
+ * Replace this with your real inventory updating logic.
+ * For example, updating stock levels in your inventory DB.
+ */
+async function updateInventoryStock(receiptItems: Array<{ product_id: string; quantity: number }>) {
+  // Example: Loop through each item in goods receipt and update stock.
+  for (const item of receiptItems) {
+    // await your inventory update API / supabase call here
+    // Example:
+    // await supabase.from("inventory").upsert({ product_id: item.product_id, quantity: increment })
+  }
+  console.log("Inventory updated for receipt items:", receiptItems);
+}
+
 export default function ProcurementManagement() {
   const [showAddRequisition, setShowAddRequisition] = useState(false);
   const [showAddSupplier, setShowAddSupplier] = useState(false);
@@ -92,6 +107,26 @@ export default function ProcurementManagement() {
 
     // Optionally refetch suppliers if needed
     refetchSuppliers();
+  };
+
+  /**
+   * Integration Point:
+   * This function is called when goods receipt is verified and accepted.
+   * It triggers inventory stock update, then refreshes procurement stats.
+   */
+  const handleGoodsReceiptVerified = async (receiptItems: Array<{ product_id: string; quantity: number }>) => {
+    try {
+      // 1. Update inventory stock levels based on receipt items
+      await updateInventoryStock(receiptItems);
+
+      // 2. Invalidate procurement stats and related queries so UI updates
+      queryClient.invalidateQueries({ queryKey: ["procurement-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["goods-receipts"] }); // Assuming you have such a query key
+
+      // Optionally refresh other procurement related data if needed
+    } catch (error) {
+      console.error("Error updating inventory after goods receipt verification", error);
+    }
   };
 
   return (
@@ -181,6 +216,7 @@ export default function ProcurementManagement() {
           <TabsContent value="requisitions">
             <PurchaseRequisitionTable />
           </TabsContent>
+
           <TabsContent value="suppliers">
             <SupplierManagementTable
               activeSuppliers={activeSuppliersData || []}
@@ -189,11 +225,15 @@ export default function ProcurementManagement() {
               onAddSupplier={handleAddSupplier} // Pass the handler to add a supplier
             />
           </TabsContent>
+
           <TabsContent value="purchase-orders">
             <PurchaseOrderManagement />
           </TabsContent>
+
           <TabsContent value="goods-receipt">
-            <GoodsReceiptMatching />
+            <GoodsReceiptMatching
+              onReceiptVerified={handleGoodsReceiptVerified} // Pass down to handle inventory update
+            />
           </TabsContent>
         </Tabs>
 

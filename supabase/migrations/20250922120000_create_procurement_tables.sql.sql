@@ -41,3 +41,67 @@ create index if not exists idx_purchase_requisitions_status on public.purchase_r
 create index if not exists idx_purchase_orders_status on public.purchase_orders (status);
 create index if not exists idx_goods_receipts_po_id on public.goods_receipts (purchase_order_id);
 create index if not exists idx_suppliers_is_active on public.suppliers (is_active);
+
+
+
+-- ================================================
+-- 🔁 Trigger: Auto-create Stock Transaction on Goods Receipt
+-- ================================================
+
+-- Step 1: Add column to goods_receipts to hold item_id and quantity (for now, single item per receipt)
+ALTER TABLE public.goods_receipts
+ADD COLUMN IF NOT EXISTS item_id uuid REFERENCES public.items(id),
+ADD COLUMN IF NOT EXISTS quantity integer DEFAULT 0;
+
+-- Step 2: Function to insert into stock_transactions after goods_receipts insert
+CREATE OR REPLACE FUNCTION public.create_stock_transaction_from_goods_receipt()
+RETURNS TRIGGER AS $$
+DECLARE
+  default_warehouse_id uuid;
+BEGIN
+  -- Fetch the default warehouse
+  SELECT id INTO default_warehouse_id
+  FROM public.warehouses
+  WHERE is_default = true
+  LIMIT 1;
+
+  -- If we don't have a default warehouse, exit
+  IF default_warehouse_id IS NULL THEN
+    RAISE EXCEPTION 'No default warehouse found. Cannot create stock transaction.';
+  END IF;
+
+  -- Insert stock-in transaction
+  INSERT INTO public.stock_transactions (
+    item_id,
+    warehouse_id,
+    transaction_type,
+    quantity,
+    reference_number,
+    notes,
+    unit_cost,
+    total_cost,
+    created_by
+  ) VALUES (
+    NEW.item_id,
+    default_warehouse_id,
+    'stock-in',
+    NEW.quantity,
+    NEW.purchase_order_id::text, -- reference number
+    'Auto-created from Goods Receipt ID ' || NEW.id,
+    NULL, -- unit cost (can be populated later)
+    NULL, -- total cost
+    NEW.received_by -- created_by (may replace with user ID later)
+  );
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Step 3: Trigger to call function after insert
+DROP TRIGGER IF EXISTS trg_create_stock_transaction_from_goods_receipt ON public.goods_receipts;
+
+CREATE TRIGGER trg_create_stock_transaction_from_goods_receipt
+AFTER INSERT ON public.goods_receipts
+FOR EACH ROW
+WHEN (NEW.is_verified = true)
+EXECUTE FUNCTION public.create_stock_transaction_from_goods_receipt();
