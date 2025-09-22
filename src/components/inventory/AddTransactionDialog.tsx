@@ -31,9 +31,11 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
     unit_cost: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch active items
   const { data: items } = useQuery({
     queryKey: ['active-items'],
     queryFn: async () => {
@@ -42,12 +44,13 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
         .select('id, name, sku')
         .eq('is_active', true)
         .order('name');
-      
+
       if (error) throw error;
       return data || [];
     },
   });
 
+  // Fetch active warehouses
   const { data: warehouses } = useQuery({
     queryKey: ['active-warehouses'],
     queryFn: async () => {
@@ -56,7 +59,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
         .select('id, name')
         .eq('is_active', true)
         .order('name');
-      
+
       if (error) throw error;
       return data || [];
     },
@@ -90,7 +93,6 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
         description: 'Transaction recorded successfully!',
       });
 
-      // Reset form
       setFormData({
         item_id: '',
         warehouse_id: '',
@@ -123,6 +125,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
         <DialogHeader>
           <DialogTitle>Add Stock Transaction</DialogTitle>
         </DialogHeader>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -144,6 +147,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="warehouse">Warehouse *</Label>
               <Select
@@ -184,6 +188,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="quantity">Quantity *</Label>
               <Input
@@ -208,6 +213,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
                 placeholder="PO#, Invoice#, etc."
               />
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="unit_cost">Unit Cost ($)</Label>
               <Input
