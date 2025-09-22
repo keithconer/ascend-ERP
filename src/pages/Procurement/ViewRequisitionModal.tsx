@@ -73,18 +73,20 @@ export default function ViewRequisitionModal({
 
       if (updateError) throw updateError;
 
-      // 2. Generate PO number and create purchase order
+      // 2. Generate PO number and create purchase order using requested_by as supplier
       const poNumber = generatePONumber();
       const { data: poData, error: poError } = await supabase
         .from("purchase_orders")
         .insert([
           {
+            po_number: poNumber,
             requisition_id: requisition.id,
-            supplier_id: null,
+            supplier_id: null, // still using nullable supplier_id
             status: "pending",
             order_date: new Date().toISOString(),
             notes: null,
-            po_number: poNumber,
+            // If you have a supplier_name column, set it to requested_by
+            // supplier_name: requisition.requested_by
           },
         ])
         .select()
@@ -97,7 +99,7 @@ export default function ViewRequisitionModal({
         purchase_order_id: poData.id,
         item_id: item_id.id,
         quantity,
-        price: 0, // Set price later
+        price: 0, // default price
       }));
 
       const { error: poiError } = await supabase
@@ -109,7 +111,7 @@ export default function ViewRequisitionModal({
       if (onUpdated) onUpdated();
       onClose();
     } catch (error: any) {
-      alert("Failed to approve requisition: " + error.message);
+      alert("Failed to approve requisition: " + (error.message ?? error));
     } finally {
       setLoading(false);
     }
@@ -125,24 +127,16 @@ export default function ViewRequisitionModal({
         <DialogHeader>
           <DialogTitle>Requisition Details</DialogTitle>
           <DialogDescription>
-            View details for requisition{" "}
-            <strong>{requisition.id.slice(0, 8)}</strong>
+            View details for requisition <strong>{requisition.id.slice(0, 8)}</strong>
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-4 space-y-4">
           <div>
-            <p>
-              <strong>Requested By:</strong> {requisition.requested_by}
-            </p>
-            <p>
-              <strong>Description:</strong> {requisition.description || "-"}
-            </p>
-            <p>
-              <strong>Status:</strong> {requisition.status}
-            </p>
-            <p>
-              <strong>Request Date:</strong>{" "}
+            <p><strong>Requested By (Supplier):</strong> {requisition.requested_by}</p>
+            <p><strong>Description:</strong> {requisition.description || "-"}</p>
+            <p><strong>Status:</strong> {requisition.status}</p>
+            <p><strong>Request Date:</strong>{" "}
               {format(new Date(requisition.request_date), "PPP")}
             </p>
           </div>
