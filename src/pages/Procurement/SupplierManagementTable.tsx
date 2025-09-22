@@ -35,6 +35,10 @@ export const SupplierManagementTable = () => {
   const [newSupplierContactInfo, setNewSupplierContactInfo] = useState("");
   const [newSupplierIsActive, setNewSupplierIsActive] = useState(true);
 
+  useEffect(() => {
+    fetchSuppliers();
+  }, []);
+
   const fetchSuppliers = async () => {
     const { data, error } = await supabase
       .from("suppliers")
@@ -48,33 +52,29 @@ export const SupplierManagementTable = () => {
     }
   };
 
-  useEffect(() => {
-    fetchSuppliers();
-  }, []);
-
   const handleAddSupplier = async () => {
     if (!newSupplierName.trim() || !newSupplierContactInfo.trim()) {
       alert("Please fill in all fields.");
       return;
     }
 
-    // Immediately close dialog
     setAddSupplierDialogOpen(false);
 
-    // Submit data to Supabase
-    const { data, error } = await supabase.from("suppliers").insert([{
-      name: newSupplierName,
-      contact_info: newSupplierContactInfo,
-      is_active: newSupplierIsActive,
-    }]);
+    const { data, error } = await supabase
+      .from("suppliers")
+      .insert([
+        {
+          name: newSupplierName,
+          contact_info: newSupplierContactInfo,
+          is_active: newSupplierIsActive,
+        },
+      ])
+      .select(); // IMPORTANT: Select to return inserted row
 
     if (error) {
       console.error("Error adding supplier:", error.message);
-    } else {
-      // Optimistically add the new supplier at the top of the list
-      setSuppliers((prevSuppliers) => [data[0], ...prevSuppliers]);
-
-      // Clear form
+    } else if (data && data.length > 0) {
+      setSuppliers((prev) => [data[0], ...prev]);
       setNewSupplierName("");
       setNewSupplierContactInfo("");
       setNewSupplierIsActive(true);
