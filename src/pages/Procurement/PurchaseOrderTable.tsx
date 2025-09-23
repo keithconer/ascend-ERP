@@ -9,7 +9,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { EyeIcon } from "lucide-react";
+import { EyeIcon, Trash2 } from "lucide-react"; // Trash2 icon for delete
 import { format } from "date-fns";
 import PurchaseOrderForm from "./PurchaseOrderForm";
 import ViewPurchaseOrderModal from "./ViewPurchaseOrderModal";
@@ -27,9 +27,8 @@ interface PurchaseOrder {
   po_number: string;
   requisition: {
     id: string;
-    requested_by: string;
   } | null;
-  supplier: null; // Not used since we use requested_by instead
+  supplier_name: string;
   order_date: string;
   status: string;
   notes: string | null;
@@ -43,6 +42,7 @@ export default function PurchaseOrderTable() {
   const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [showView, setShowView] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -57,17 +57,19 @@ export default function PurchaseOrderTable() {
       .select(`
         id,
         po_number,
-        requisition: purchase_requisitions!inner (
-          id,
-          requested_by
-        ),
         order_date,
         status,
         notes,
+        requisition: purchase_requisitions (
+          id
+        ),
+        supplier: suppliers (
+          name
+        ),
         purchase_order_items (
           quantity,
           price,
-          items: items!purchase_order_items_item_id_fkey (
+          items: items (
             id,
             name,
             unit_price
@@ -85,11 +87,10 @@ export default function PurchaseOrderTable() {
       setPurchaseOrders([]);
     } else {
       const transformed = data.map((po: any) => {
-        // Map items, use items.unit_price as the authoritative price
         const items = po.purchase_order_items.map((i: any) => ({
-          item_name: i.items.name,
+          item_name: i.items?.name ?? "Unknown",
           quantity: i.quantity,
-          price: i.items.unit_price ?? i.price,
+          price: i.items?.unit_price ?? i.price ?? 0,
         }));
 
         const total = items.reduce(
@@ -101,7 +102,7 @@ export default function PurchaseOrderTable() {
           id: po.id,
           po_number: po.po_number,
           requisition: po.requisition,
-          supplier: null, // supplier not used
+          supplier_name: po.supplier?.name ?? "Unknown Supplier",
           order_date: po.order_date,
           status: po.status,
           notes: po.notes,
@@ -124,6 +125,36 @@ export default function PurchaseOrderTable() {
   function openViewModal(po: PurchaseOrder) {
     setSelected(po);
     setShowView(true);
+  }
+
+  async function handleDelete(id: string) {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this purchase order? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    setDeletingId(id);
+    try {
+      // Delete the purchase order
+      const { error } = await supabase.from("purchase_orders").delete().eq("id", id);
+      if (error) throw error;
+
+      toast({
+        title: "Purchase order deleted",
+        variant: "success",
+      });
+
+      // Refresh list
+      fetchPurchaseOrders();
+    } catch (error: any) {
+      toast({
+        title: "Failed to delete purchase order",
+        description: error.message || "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -161,21 +192,31 @@ export default function PurchaseOrderTable() {
               <TableRow key={po.id}>
                 <TableCell>{po.po_number}</TableCell>
                 <TableCell>{po.requisition?.id.slice(0, 8) ?? "-"}</TableCell>
-                <TableCell>{po.requisition?.requested_by ?? "-"}</TableCell>
+                <TableCell>{po.supplier_name}</TableCell>
                 <TableCell>{format(new Date(po.order_date), "PPP")}</TableCell>
                 <TableCell>{po.status}</TableCell>
                 <TableCell>
                   {po.items.map((i) => `${i.item_name} (${i.quantity})`).join(", ")}
                 </TableCell>
                 <TableCell>${po.total.toFixed(2)}</TableCell>
-                <TableCell>
+                <TableCell className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => openViewModal(po)}
                     aria-label="View Purchase Order"
+                    disabled={deletingId === po.id}
                   >
                     <EyeIcon className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(po.id)}
+                    aria-label="Delete Purchase Order"
+                    disabled={deletingId === po.id}
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </TableCell>
               </TableRow>

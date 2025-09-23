@@ -1,5 +1,3 @@
-// src/pages/procurement/ViewRequisitionModal.tsx
-
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -38,13 +36,16 @@ export default function ViewRequisitionModal({
   const [items, setItems] = useState<
     { id: string; item_id: { id: string; name: string }; quantity: number }[]
   >([]);
+  const [supplierName, setSupplierName] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (open && requisition) {
       fetchItems();
+      fetchSupplierName();
     } else {
       setItems([]);
+      setSupplierName("");
     }
   }, [open, requisition]);
 
@@ -62,6 +63,20 @@ export default function ViewRequisitionModal({
     setItems(data || []);
   }
 
+  async function fetchSupplierName() {
+    const { data, error } = await supabase
+      .from("suppliers")
+      .select("name")
+      .eq("id", (requisition as any).supplier_id)
+      .single();
+
+    if (error) {
+      setSupplierName("Unknown Supplier");
+    } else {
+      setSupplierName(data?.name || "Unknown Supplier");
+    }
+  }
+
   async function handleApprove() {
     setLoading(true);
     try {
@@ -73,7 +88,7 @@ export default function ViewRequisitionModal({
 
       if (updateError) throw updateError;
 
-      // 2. Generate PO number and create purchase order using requested_by as supplier
+      // 2. Generate PO number and create purchase order
       const poNumber = generatePONumber();
       const { data: poData, error: poError } = await supabase
         .from("purchase_orders")
@@ -81,12 +96,10 @@ export default function ViewRequisitionModal({
           {
             po_number: poNumber,
             requisition_id: requisition.id,
-            supplier_id: null, // still using nullable supplier_id
+            supplier_id: (requisition as any).supplier_id,
             status: "pending",
             order_date: new Date().toISOString(),
             notes: null,
-            // If you have a supplier_name column, set it to requested_by
-            // supplier_name: requisition.requested_by
           },
         ])
         .select()
@@ -107,6 +120,25 @@ export default function ViewRequisitionModal({
         .insert(orderItems);
 
       if (poiError) throw poiError;
+
+      // ✅ 4. Auto-create Goods Receipt with status = "delivered"
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+      const grNumber = `GR-${dateStr}-${poNumber}`;
+      const invoiceNumber = `INV-${dateStr}`;
+
+      const { error: grError } = await supabase
+        .from("goods_receipts")
+        .insert([
+          {
+            gr_number: grNumber,
+            invoice_number: invoiceNumber,
+            po_id: poData.id,
+            status: "delivered", // <-- set delivered here
+          },
+        ]);
+
+      if (grError) throw grError;
 
       if (onUpdated) onUpdated();
       onClose();
@@ -133,10 +165,17 @@ export default function ViewRequisitionModal({
 
         <div className="mt-4 space-y-4">
           <div>
-            <p><strong>Requested By (Supplier):</strong> {requisition.requested_by}</p>
-            <p><strong>Description:</strong> {requisition.description || "-"}</p>
-            <p><strong>Status:</strong> {requisition.status}</p>
-            <p><strong>Request Date:</strong>{" "}
+            <p>
+              <strong>Supplier:</strong> {supplierName}
+            </p>
+            <p>
+              <strong>Description:</strong> {requisition.description || "-"}
+            </p>
+            <p>
+              <strong>Status:</strong> {requisition.status}
+            </p>
+            <p>
+              <strong>Request Date:</strong>{" "}
               {format(new Date(requisition.request_date), "PPP")}
             </p>
           </div>

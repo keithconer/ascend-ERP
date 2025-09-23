@@ -1,0 +1,273 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+
+interface Supplier {
+  id: string;
+  name: string;
+  contact_info: string | null;
+  address: string | null;
+  created_at: string;
+}
+
+export default function SupplierManagement() {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  // For add/edit form fields
+  const [name, setName] = useState("");
+  const [contactInfo, setContactInfo] = useState("");
+  const [address, setAddress] = useState("");
+
+  // Track if editing or adding new
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchSuppliers();
+  }, []);
+
+  async function fetchSuppliers() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("suppliers")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast({ title: "Error fetching suppliers", description: error.message });
+    } else {
+      setSuppliers(data || []);
+    }
+    setLoading(false);
+  }
+
+  function openAddModal() {
+    setEditingSupplier(null);
+    setName("");
+    setContactInfo("");
+    setAddress("");
+    setOpen(true);
+  }
+
+  function openEditModal(supplier: Supplier) {
+    setEditingSupplier(supplier);
+    setName(supplier.name);
+    setContactInfo(supplier.contact_info || "");
+    setAddress(supplier.address || "");
+    setOpen(true);
+  }
+
+  async function handleAddSupplier() {
+    if (!name.trim()) {
+      toast({ title: "Validation Error", description: "Supplier name is required." });
+      return;
+    }
+
+    setLoading(true);
+
+    const { error } = await supabase.from("suppliers").insert({
+      name: name.trim(),
+      contact_info: contactInfo.trim() || null,
+      address: address.trim() || null,
+    });
+
+    if (error) {
+      toast({ title: "Error adding supplier", description: error.message });
+    } else {
+      toast({ title: "Supplier added", description: `${name} added successfully.` });
+      setOpen(false);
+      fetchSuppliers();
+    }
+
+    setLoading(false);
+  }
+
+  async function handleUpdateSupplier() {
+    if (!editingSupplier) return;
+
+    if (!name.trim()) {
+      toast({ title: "Validation Error", description: "Supplier name is required." });
+      return;
+    }
+
+    setLoading(true);
+
+    const { error } = await supabase
+      .from("suppliers")
+      .update({
+        name: name.trim(),
+        contact_info: contactInfo.trim() || null,
+        address: address.trim() || null,
+      })
+      .eq("id", editingSupplier.id);
+
+    if (error) {
+      toast({ title: "Error updating supplier", description: error.message });
+    } else {
+      toast({ title: "Supplier updated", description: `${name} updated successfully.` });
+      setOpen(false);
+      fetchSuppliers();
+    }
+
+    setLoading(false);
+  }
+
+  async function handleDeleteSupplier(id: string, name: string) {
+    const confirmed = window.confirm(`Are you sure you want to delete supplier "${name}"?`);
+    if (!confirmed) return;
+
+    setLoading(true);
+
+    const { error } = await supabase.from("suppliers").delete().eq("id", id);
+
+    if (error) {
+      toast({ title: "Error deleting supplier", description: error.message });
+    } else {
+      toast({ title: "Supplier deleted", description: `${name} was deleted successfully.` });
+      fetchSuppliers();
+    }
+
+    setLoading(false);
+  }
+
+  function handleSubmit() {
+    if (editingSupplier) {
+      handleUpdateSupplier();
+    } else {
+      handleAddSupplier();
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold">Suppliers</h2>
+        <Button onClick={openAddModal}>Add Supplier</Button>
+      </div>
+
+      {loading && <p>Loading...</p>}
+
+      {!loading && suppliers.length === 0 && <p>No suppliers found.</p>}
+
+      {!loading && suppliers.length > 0 && (
+        <table className="w-full border-collapse border border-gray-300">
+          <thead>
+            <tr>
+              <th className="border border-gray-300 p-2 text-left">Name</th>
+              <th className="border border-gray-300 p-2 text-left">Contact Info</th>
+              <th className="border border-gray-300 p-2 text-left">Address</th>
+              <th className="border border-gray-300 p-2 text-left">Created At</th>
+              <th className="border border-gray-300 p-2 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {suppliers.map((supplier) => (
+              <tr key={supplier.id} className="even:bg-gray-50">
+                <td className="border border-gray-300 p-2">{supplier.name}</td>
+                <td className="border border-gray-300 p-2">{supplier.contact_info || "-"}</td>
+                <td className="border border-gray-300 p-2">{supplier.address || "-"}</td>
+                <td className="border border-gray-300 p-2">
+                  {supplier.created_at
+                    ? format(new Date(supplier.created_at), "PPP p")
+                    : "-"}
+                </td>
+                <td className="border border-gray-300 p-2 space-x-2">
+                  <Button size="sm" variant="outline" onClick={() => openEditModal(supplier)}>
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleDeleteSupplier(supplier.id, supplier.name)}
+                    disabled={loading}
+                  >
+                    Delete
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingSupplier ? "Edit Supplier" : "Add New Supplier"}</DialogTitle>
+            <DialogDescription>
+              {editingSupplier
+                ? "Update the supplier details below."
+                : "Fill the form below to add a supplier."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-4">
+            <div>
+              <label htmlFor="name" className="block font-semibold mb-1">
+                Name <span className="text-red-500">*</span>
+              </label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                placeholder="Supplier Name"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="contactInfo" className="block font-semibold mb-1">
+                Contact Info
+              </label>
+              <Input
+                id="contactInfo"
+                value={contactInfo}
+                onChange={(e) => setContactInfo(e.target.value)}
+                placeholder="Phone, Email, etc."
+              />
+            </div>
+
+            <div>
+              <label htmlFor="address" className="block font-semibold mb-1">
+                Address
+              </label>
+              <Input
+                id="address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Supplier Address"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex justify-end gap-2 mt-6">
+            <Button
+              variant="secondary"
+              onClick={() => setOpen(false)}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={loading}>
+              {loading ? (editingSupplier ? "Updating..." : "Adding...") : (editingSupplier ? "Update Supplier" : "Add Supplier")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

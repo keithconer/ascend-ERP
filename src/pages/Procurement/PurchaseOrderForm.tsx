@@ -14,9 +14,14 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
+// Interfaces
 interface RequisitionOption {
   id: string;
-  requested_by: string; // supplier name text from requisition
+}
+
+interface SupplierOption {
+  id: string;
+  name: string;
 }
 
 interface ItemOption {
@@ -42,10 +47,11 @@ export default function PurchaseOrderForm({
   onCreated,
 }: PurchaseOrderFormProps) {
   const [requisitions, setRequisitions] = useState<RequisitionOption[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [itemsOptions, setItemsOptions] = useState<ItemOption[]>([]);
 
   const [selectedRequisition, setSelectedRequisition] = useState<string | null>(null);
-  const [supplierName, setSupplierName] = useState<string>(""); // supplier text from requisition.requested_by
+  const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
 
   const [orderDate, setOrderDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState<string>("");
@@ -60,15 +66,15 @@ export default function PurchaseOrderForm({
   useEffect(() => {
     if (open) {
       fetchRequisitions();
+      fetchSuppliers();
       fetchItems();
     }
   }, [open]);
 
   async function fetchRequisitions() {
-    // fetch approved requisitions with requested_by
     const { data, error } = await supabase
       .from("purchase_requisitions")
-      .select("id, requested_by")
+      .select("id")
       .eq("status", "approved")
       .order("request_date", { ascending: false });
 
@@ -79,11 +85,18 @@ export default function PurchaseOrderForm({
     }
   }
 
+  async function fetchSuppliers() {
+    const { data, error } = await supabase.from("suppliers").select("id, name").order("name");
+
+    if (error) {
+      toast({ title: "Error loading suppliers", description: error.message });
+    } else {
+      setSuppliers(data || []);
+    }
+  }
+
   async function fetchItems() {
-    const { data, error } = await supabase
-      .from("items")
-      .select("id, name")
-      .order("name");
+    const { data, error } = await supabase.from("items").select("id, name").order("name");
 
     if (error) {
       toast({ title: "Error loading items", description: error.message });
@@ -91,16 +104,6 @@ export default function PurchaseOrderForm({
       setItemsOptions(data || []);
     }
   }
-
-  // Update supplier name when requisition changes
-  useEffect(() => {
-    if (selectedRequisition) {
-      const selected = requisitions.find((r) => r.id === selectedRequisition);
-      setSupplierName(selected?.requested_by || "");
-    } else {
-      setSupplierName("");
-    }
-  }, [selectedRequisition, requisitions]);
 
   const updateFormItem = (index: number, field: keyof FormItem, value: any) => {
     const newItems = [...formItems];
@@ -124,21 +127,21 @@ export default function PurchaseOrderForm({
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, "0");
     const day = String(now.getDate()).padStart(2, "0");
-    const random = Math.floor(1000 + Math.random() * 9000); // 4 digit random
+    const random = Math.floor(1000 + Math.random() * 9000);
     return `${year}${month}${day}-${random}`;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate
+    // Validation
     if (!selectedRequisition) {
       toast({ title: "Validation error", description: "Requisition is required." });
       return;
     }
 
-    if (!supplierName) {
-      toast({ title: "Validation error", description: "Supplier name is required." });
+    if (!selectedSupplier) {
+      toast({ title: "Validation error", description: "Supplier is required." });
       return;
     }
 
@@ -155,17 +158,16 @@ export default function PurchaseOrderForm({
     try {
       const po_number = generatePoNumber();
 
-      // Insert purchase order with supplierName in notes since supplier_id is unknown/empty
       const { data: poData, error: poError } = await supabase
         .from("purchase_orders")
         .insert([
           {
             po_number,
             requisition_id: selectedRequisition,
-            // supplier_id: null (no UUID available)
+            supplier_id: selectedSupplier,
             order_date: orderDate,
             status: "pending",
-            notes: notes ? `${notes} (Supplier: ${supplierName})` : `Supplier: ${supplierName}`,
+            notes,
           },
         ])
         .select()
@@ -173,7 +175,6 @@ export default function PurchaseOrderForm({
 
       if (poError || !poData) throw poError || new Error("Failed to create Purchase Order");
 
-      // Insert purchase order items
       const itemsToInsert = formItems.map((fi) => ({
         purchase_order_id: poData.id,
         item_id: fi.itemId,
@@ -181,11 +182,16 @@ export default function PurchaseOrderForm({
         price: fi.price,
       }));
 
-      const { error: itemsError } = await supabase.from("purchase_order_items").insert(itemsToInsert);
+      const { error: itemsError } = await supabase
+        .from("purchase_order_items")
+        .insert(itemsToInsert);
 
       if (itemsError) throw itemsError;
 
-      toast({ title: "Purchase Order created", description: `PO ${po_number} created successfully.` });
+      toast({
+        title: "Purchase Order created",
+        description: `PO ${po_number} created successfully.`,
+      });
       onCreated();
       onClose();
     } catch (error: any) {
@@ -202,31 +208,46 @@ export default function PurchaseOrderForm({
       <h2 className="text-xl font-semibold mb-4">New Purchase Order</h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Requisition ID Dropdown */}
+        {/* Requisition Dropdown */}
         <div>
-          <Label>Requisition ID</Label>
+          <Label>Requisition</Label>
           <Select
             value={selectedRequisition || ""}
             onValueChange={(val) => setSelectedRequisition(val || null)}
             required
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select requisition" />
+              <SelectValue placeholder="Select requisition ID" />
             </SelectTrigger>
             <SelectContent>
               {requisitions.map((r) => (
                 <SelectItem key={r.id} value={r.id}>
-                  {r.id.slice(0, 8)} — Requested by: {r.requested_by}
+                  {r.id.slice(0, 8)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        {/* Supplier Name (from requisition.requested_by) */}
+        {/* Supplier Dropdown */}
         <div>
           <Label>Supplier</Label>
-          <Input type="text" value={supplierName} readOnly />
+          <Select
+            value={selectedSupplier || ""}
+            onValueChange={(val) => setSelectedSupplier(val || null)}
+            required
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select supplier" />
+            </SelectTrigger>
+            <SelectContent>
+              {suppliers.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Order Date */}
@@ -251,13 +272,13 @@ export default function PurchaseOrderForm({
           />
         </div>
 
-        {/* Items */}
+        {/* Items Section */}
         <div>
           <Label>Items</Label>
           {formItems.map((fi, idx) => (
             <div key={idx} className="flex gap-2 items-center mb-2">
               <Select
-                value={fi.itemId || ""}
+                value={fi.itemId}
                 onValueChange={(val) => updateFormItem(idx, "itemId", val)}
                 required
               >
@@ -265,9 +286,9 @@ export default function PurchaseOrderForm({
                   <SelectValue placeholder="Select item" />
                 </SelectTrigger>
                 <SelectContent>
-                  {itemsOptions.map((it) => (
-                    <SelectItem key={it.id} value={it.id}>
-                      {it.name}
+                  {itemsOptions.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -294,7 +315,11 @@ export default function PurchaseOrderForm({
                 className="w-24"
               />
 
-              <Button variant="destructive" type="button" onClick={() => removeItemRow(idx)}>
+              <Button
+                variant="destructive"
+                type="button"
+                onClick={() => removeItemRow(idx)}
+              >
                 Remove
               </Button>
             </div>
@@ -305,7 +330,7 @@ export default function PurchaseOrderForm({
           </Button>
         </div>
 
-        {/* Submit buttons */}
+        {/* Submit */}
         <div className="pt-4 space-x-2">
           <Button type="submit" disabled={loading}>
             {loading ? "Creating..." : "Create Purchase Order"}

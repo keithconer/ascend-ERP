@@ -1,8 +1,13 @@
-// src/pages/procurement/PurchaseRequisitionTable.tsx
-
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { EyeIcon, Trash2Icon } from "lucide-react";
 import { format } from "date-fns";
@@ -11,10 +16,11 @@ import { useToast } from "@/hooks/use-toast";
 
 interface Requisition {
   id: string;
-  requested_by: string;
   description: string;
   status: string;
   request_date: string;
+  supplier_id: string;
+  supplier_name: string;
   items: {
     item_name: string;
     quantity: number;
@@ -34,34 +40,55 @@ export default function PurchaseRequisitionTable() {
 
   const fetchRequisitions = async () => {
     setLoading(true);
+
     const { data, error } = await supabase
-      .from("purchase_requisitions")
-      .select(`
-        id, requested_by, description, status, request_date,
-        purchase_requisition_items (
-          quantity,
-          item_id,
-          items ( name )
-        )
-      `);
+    .from("purchase_requisitions")
+    .select(`
+      id,
+      description,
+      status,
+      request_date,
+      supplier_id,
+      suppliers ( name ),
+      purchase_requisition_items (
+        quantity,
+        item_id,
+        items ( name )
+      )
+    `);
 
     if (error) {
-      toast({ title: "Error fetching requisitions", description: error.message });
-    } else {
-      const transformed = data.map((req: any) => ({
-        ...req,
-        items: req.purchase_requisition_items.map((item: any) => ({
-          item_name: item.items.name,
-          quantity: item.quantity,
-        })),
-      }));
-      setRequisitions(transformed);
+      toast({
+        title: "Error fetching requisitions",
+        description: error.message,
+      });
+      setLoading(false);
+      return;
     }
+
+    const transformed = data.map((req: any) => ({
+      id: req.id,
+      description: req.description,
+      status: req.status,
+      request_date: req.request_date,
+      supplier_id: req.supplier_id,
+      supplier_name: req.suppliers?.name || "Unknown Supplier",
+      items: req.purchase_requisition_items.map((item: any) => ({
+        item_name: item.items.name,
+        quantity: item.quantity,
+      })),
+    }));
+
+    setRequisitions(transformed);
     setLoading(false);
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("purchase_requisitions").delete().eq("id", id);
+    const { error } = await supabase
+      .from("purchase_requisitions")
+      .delete()
+      .eq("id", id);
+
     if (error) {
       toast({ title: "Delete failed", description: error.message });
     } else {
@@ -77,7 +104,7 @@ export default function PurchaseRequisitionTable() {
           <TableHeader>
             <TableRow>
               <TableHead>Requisition No.</TableHead>
-              <TableHead>Requested By</TableHead>
+              <TableHead>Supplier</TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Items</TableHead>
@@ -97,11 +124,13 @@ export default function PurchaseRequisitionTable() {
             {requisitions.map((req) => (
               <TableRow key={req.id}>
                 <TableCell>{req.id.slice(0, 8)}</TableCell>
-                <TableCell>{req.requested_by}</TableCell>
+                <TableCell>{req.supplier_name}</TableCell>
                 <TableCell>{req.description || "-"}</TableCell>
                 <TableCell>{req.status}</TableCell>
                 <TableCell>
-                  {req.items.map((item) => `${item.item_name} (${item.quantity})`).join(", ")}
+                  {req.items
+                    .map((item) => `${item.item_name} (${item.quantity})`)
+                    .join(", ")}
                 </TableCell>
                 <TableCell>{format(new Date(req.request_date), "PPP")}</TableCell>
                 <TableCell>
@@ -116,7 +145,11 @@ export default function PurchaseRequisitionTable() {
                     >
                       <EyeIcon className="w-4 h-4" />
                     </Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleDelete(req.id)}>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(req.id)}
+                    >
                       <Trash2Icon className="w-4 h-4" />
                     </Button>
                   </div>

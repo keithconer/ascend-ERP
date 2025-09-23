@@ -12,6 +12,11 @@ interface ItemOption {
   name: string;
 }
 
+interface SupplierOption {
+  id: string;
+  name: string;
+}
+
 interface FormItem {
   itemId: string;
   quantity: number;
@@ -22,18 +27,18 @@ interface PurchaseRequisitionFormProps {
 }
 
 export default function PurchaseRequisitionForm({ onSuccess }: PurchaseRequisitionFormProps) {
-  const [requester, setRequester] = useState("");
-  const [description, setDescription] = useState("");
+  const [supplierId, setSupplierId] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
   const [itemsOptions, setItemsOptions] = useState<ItemOption[]>([]);
-  const [formItems, setFormItems] = useState<FormItem[]>([
-    { itemId: "", quantity: 1 },
-  ]);
-  const [loading, setLoading] = useState(false);
+  const [suppliersOptions, setSuppliersOptions] = useState<SupplierOption[]>([]);
+  const [formItems, setFormItems] = useState<FormItem[]>([{ itemId: "", quantity: 1 }]);
+  const [loading, setLoading] = useState<boolean>(false);
   const { toast } = useToast();
 
-  // Fetch available items to select
+  // Fetch items and suppliers on mount
   useEffect(() => {
     fetchItems();
+    fetchSuppliers();
   }, []);
 
   async function fetchItems() {
@@ -45,36 +50,49 @@ export default function PurchaseRequisitionForm({ onSuccess }: PurchaseRequisiti
     }
   }
 
-  // Handle change in item selection or quantity
-  const updateFormItem = (index: number, field: keyof FormItem, value: any) => {
-    const newItems = [...formItems];
-    newItems[index][field] = value;
-    setFormItems(newItems);
+  async function fetchSuppliers() {
+    const { data, error } = await supabase.from("suppliers").select("id, name").order("name");
+    if (error) {
+      toast({ title: "Error loading suppliers", description: error.message });
+    } else {
+      setSuppliersOptions(data || []);
+    }
+  }
+
+  // Update specific form item field
+  const updateFormItem = (index: number, field: keyof FormItem, value: string | number) => {
+    setFormItems((current) => {
+      const newItems = [...current];
+      newItems[index] = { ...newItems[index], [field]: value };
+      return newItems;
+    });
   };
 
-  // Add new empty item row
+  // Add empty item row
   const addItemRow = () => {
-    setFormItems([...formItems, { itemId: "", quantity: 1 }]);
+    setFormItems((current) => [...current, { itemId: "", quantity: 1 }]);
   };
 
-  // Remove an item row by index
+  // Remove item row by index (keep at least one)
   const removeItemRow = (index: number) => {
-    if (formItems.length === 1) return; // keep at least one row
-    const newItems = [...formItems];
-    newItems.splice(index, 1);
-    setFormItems(newItems);
+    setFormItems((current) => {
+      if (current.length === 1) return current;
+      const newItems = [...current];
+      newItems.splice(index, 1);
+      return newItems;
+    });
   };
 
-  // Form submission handler
+  // Submit handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!requester.trim()) {
-      toast({ title: "Validation error", description: "Requester is required." });
+    if (!supplierId.trim()) {
+      toast({ title: "Validation error", description: "Supplier is required." });
       return;
     }
 
-    if (formItems.some(item => !item.itemId)) {
+    if (formItems.some((item) => !item.itemId)) {
       toast({ title: "Validation error", description: "Please select all items." });
       return;
     }
@@ -82,17 +100,24 @@ export default function PurchaseRequisitionForm({ onSuccess }: PurchaseRequisiti
     setLoading(true);
 
     try {
-      // Insert into purchase_requisitions
+      // Insert new purchase requisition with supplier_id
       const { data: reqData, error: reqError } = await supabase
         .from("purchase_requisitions")
-        .insert([{ requested_by: requester, description, status: "pending", request_date: new Date().toISOString() }])
+        .insert([
+          {
+            supplier_id: supplierId,
+            description,
+            status: "pending",
+            request_date: new Date().toISOString(),
+          },
+        ])
         .select()
         .single();
 
       if (reqError) throw reqError;
       if (!reqData) throw new Error("Failed to create requisition");
 
-      // Insert related purchase_requisition_items with correct column name
+      // Insert items related to the requisition
       const itemsToInsert = formItems.map(({ itemId, quantity }) => ({
         requisition_id: reqData.id,
         item_id: itemId,
@@ -106,8 +131,9 @@ export default function PurchaseRequisitionForm({ onSuccess }: PurchaseRequisiti
       if (itemsError) throw itemsError;
 
       toast({ title: "Requisition created successfully" });
-      // Clear form
-      setRequester("");
+
+      // Reset form
+      setSupplierId("");
       setDescription("");
       setFormItems([{ itemId: "", quantity: 1 }]);
 
@@ -120,17 +146,26 @@ export default function PurchaseRequisitionForm({ onSuccess }: PurchaseRequisiti
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 p-4 border rounded bg-white shadow-sm max-w-3xl">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-6 p-4 border rounded bg-white shadow-sm max-w-3xl"
+    >
       <div>
-        <Label htmlFor="requester">Requested By</Label>
-        <Input
-          id="requester"
-          type="text"
-          placeholder="Enter requester name"
-          value={requester}
-          onChange={(e) => setRequester(e.target.value)}
+        <Label htmlFor="supplier">Supplier</Label>
+        <select
+          id="supplier"
+          className="w-full border rounded px-3 py-2"
+          value={supplierId}
+          onChange={(e) => setSupplierId(e.target.value)}
           required
-        />
+        >
+          <option value="">Select a supplier</option>
+          {suppliersOptions.map((supplier) => (
+            <option key={supplier.id} value={supplier.id}>
+              {supplier.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>
@@ -166,10 +201,18 @@ export default function PurchaseRequisitionForm({ onSuccess }: PurchaseRequisiti
               min={1}
               className="w-20 border rounded px-2 py-1"
               value={item.quantity}
-              onChange={(e) => updateFormItem(idx, "quantity", Number(e.target.value))}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                updateFormItem(idx, "quantity", val < 1 ? 1 : val);
+              }}
               required
             />
-            <Button variant="destructive" size="sm" type="button" onClick={() => removeItemRow(idx)}>
+            <Button
+              variant="destructive"
+              size="sm"
+              type="button"
+              onClick={() => removeItemRow(idx)}
+            >
               Remove
             </Button>
           </div>
