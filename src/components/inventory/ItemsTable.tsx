@@ -30,7 +30,7 @@ export const ItemsTable = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // State for edit modal and selected item
+  // Edit modal state
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
 
@@ -38,8 +38,10 @@ export const ItemsTable = () => {
   const [editName, setEditName] = useState('');
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [editUnitPrice, setEditUnitPrice] = useState<number | ''>('');
+  // New state: For editing available quantity (sum across inventory)
+  const [editAvailableQuantity, setEditAvailableQuantity] = useState<number | ''>('');
 
-  // Fetch categories for category dropdown
+  // Fetch categories
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -52,6 +54,7 @@ export const ItemsTable = () => {
     },
   });
 
+  // Fetch items with inventory and categories
   const { data: items, isLoading } = useQuery({
     queryKey: ['items', searchTerm],
     queryFn: async () => {
@@ -61,8 +64,11 @@ export const ItemsTable = () => {
           *,
           categories(id, name),
           inventory(
+            id,
             quantity,
+            reserved_quantity,
             available_quantity,
+            warehouse_id,
             warehouses(name)
           )
         `)
@@ -118,20 +124,27 @@ export const ItemsTable = () => {
     return { status: 'In Stock', variant: 'default' as const };
   };
 
-  // Open edit modal and set fields
+  // Open edit modal and set fields (including available quantity)
   const openEditModal = (item: any) => {
     setEditItem(item);
     setEditName(item.name || '');
     setEditCategoryId(item.categories?.id || null);
     setEditUnitPrice(item.unit_price ?? '');
+
+    // Set available quantity to total available quantity across warehouses
+    const totalAvailableQty = getAvailableQuantity(item.inventory);
+    setEditAvailableQuantity(totalAvailableQty);
+
     setIsEditOpen(true);
   };
 
   const closeEditModal = () => {
     setIsEditOpen(false);
     setEditItem(null);
+    setEditAvailableQuantity('');
   };
 
+  // Save edit (including updating available quantity in inventory)
   const handleSaveEdit = async () => {
     if (!editName.trim()) {
       toast({ title: 'Validation Error', description: 'Name cannot be empty.', variant: 'destructive' });
@@ -141,27 +154,67 @@ export const ItemsTable = () => {
       toast({ title: 'Validation Error', description: 'Unit Price must be a positive number.', variant: 'destructive' });
       return;
     }
+    if (editAvailableQuantity === '' || editAvailableQuantity < 0) {
+      toast({ title: 'Validation Error', description: 'Available Quantity must be a non-negative number.', variant: 'destructive' });
+      return;
+    }
 
     setIsEditOpen(false);
 
+    // Update item fields
     const updates: any = {
       name: editName,
       unit_price: editUnitPrice,
       category_id: editCategoryId,
     };
 
-    const { error } = await supabase
+    const { error: itemError } = await supabase
       .from('items')
       .update(updates)
       .eq('id', editItem.id);
 
-    if (error) {
+    if (itemError) {
       toast({ title: 'Error', description: 'Failed to update item.', variant: 'destructive' });
-      setIsEditOpen(true); // reopen modal on failure
-    } else {
-      toast({ title: 'Success', description: 'Item updated successfully.' });
-      queryClient.invalidateQueries({ queryKey: ['items'] });
+      setIsEditOpen(true);
+      return;
     }
+
+    // Now update inventory quantities to reflect new available quantity
+    // Strategy: Distribute the available quantity proportionally or just update total quantity on the first warehouse inventory record for simplicity
+
+    if (!editItem.inventory || editItem.inventory.length === 0) {
+      // No inventory record exists for this item, create one for first warehouse (assuming first warehouse exists)
+      const firstWarehouseId = null; // you may want to fetch default warehouse id here or alert user
+
+      toast({
+        title: 'Warning',
+        description: 'No inventory record found for this item, cannot update quantity.',
+        variant: 'destructive',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      return;
+    }
+
+    // For simplicity, update quantity on the first inventory record to achieve desired available quantity
+    // Calculate new quantity = desired available quantity + reserved_quantity (keep reserved_quantity same)
+    const inventoryRecord = editItem.inventory[0];
+
+    const newQuantity = editAvailableQuantity + (inventoryRecord.reserved_quantity || 0);
+
+    const { error: invError } = await supabase
+      .from('inventory')
+      .update({ quantity: newQuantity })
+      .eq('id', inventoryRecord.id);
+
+    if (invError) {
+      toast({ title: 'Error', description: 'Failed to update inventory quantity.', variant: 'destructive' });
+      setIsEditOpen(true);
+      return;
+    }
+
+    toast({ title: 'Success', description: 'Item and inventory updated successfully.' });
+    queryClient.invalidateQueries({ queryKey: ['items'] });
   };
 
   if (isLoading) {
@@ -268,75 +321,93 @@ export const ItemsTable = () => {
         </CardContent>
       </Card>
 
-     {/* Edit Modal */}
-<Dialog open={isEditOpen} onOpenChange={closeEditModal}>
-  <DialogContent className="max-w-md">
-    <DialogHeader>
-      <DialogTitle>Edit Item</DialogTitle>
-      <DialogDescription>Update item details below.</DialogDescription>
-    </DialogHeader>
-    <div className="space-y-4 mt-2">
-      <div>
-        <label htmlFor="edit-name" className="block font-semibold mb-1">
-          Name
-        </label>
-        <Input
-          id="edit-name"
-          value={editName}
-          onChange={(e) => setEditName(e.target.value)}
-          placeholder="Item name"
-        />
-      </div>
+      {/* Edit Modal */}
+      <Dialog open={isEditOpen} onOpenChange={closeEditModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Item</DialogTitle>
+            <DialogDescription>Update item details below.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <label htmlFor="edit-name" className="block font-semibold mb-1">
+                Name
+              </label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Item name"
+              />
+            </div>
 
-      <div>
-        <label htmlFor="edit-category" className="block font-semibold mb-1">
-          Category
-        </label>
-        <Select
-          onValueChange={(value) => setEditCategoryId(value)}
-          value={editCategoryId || ''}
-        >
-          <SelectTrigger id="edit-category" className="w-full">
-            <SelectValue placeholder="Select category" />
-          </SelectTrigger>
-          <SelectContent>
-            {categories?.map((cat) => (
-              <SelectItem key={cat.id} value={cat.id}>
-                {cat.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+            <div>
+              <label htmlFor="edit-category" className="block font-semibold mb-1">
+                Category
+              </label>
+              <Select
+                onValueChange={(value) => setEditCategoryId(value)}
+                value={editCategoryId || ''}
+              >
+                <SelectTrigger id="edit-category" className="w-full">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories?.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-      <div>
-        <label htmlFor="edit-unit-price" className="block font-semibold mb-1">
-          Unit Price
-        </label>
-        <Input
-          id="edit-unit-price"
-          type="number"
-          min={0}
-          step={0.01}
-          value={editUnitPrice}
-          onChange={(e) => {
-            const val = e.target.value;
-            setEditUnitPrice(val === '' ? '' : parseFloat(val));
-          }}
-          placeholder="Unit Price"
-        />
-      </div>
-    </div>
+            <div>
+              <label htmlFor="edit-unit-price" className="block font-semibold mb-1">
+                Unit Price
+              </label>
+              <Input
+                id="edit-unit-price"
+                type="number"
+                min={0}
+                step={0.01}
+                value={editUnitPrice}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEditUnitPrice(val === '' ? '' : parseFloat(val));
+                }}
+                placeholder="Unit Price"
+              />
+            </div>
 
-    <DialogFooter className="mt-4 flex justify-end space-x-2">
-      <Button variant="outline" onClick={closeEditModal}>
-        Cancel
-      </Button>
-      <Button onClick={handleSaveEdit}>Save</Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+            {/* New available quantity field */}
+            <div>
+              <label htmlFor="edit-available-quantity" className="block font-semibold mb-1">
+                Available Quantity
+              </label>
+              <Input
+                id="edit-available-quantity"
+                type="number"
+                min={0}
+                step={1}
+                value={editAvailableQuantity}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEditAvailableQuantity(val === '' ? '' : parseInt(val, 10));
+                }}
+                placeholder="Available Quantity"
+              />
+            </div>
+          </div>
 
+          <DialogFooter className="mt-4 flex justify-end space-x-2">
+            <Button variant="outline" onClick={closeEditModal}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
