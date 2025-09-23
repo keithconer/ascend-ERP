@@ -31,11 +31,14 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
     min_threshold: '0',
     max_threshold: '1000',
     expiration_tracking: false,
+    initial_quantity: '0', // NEW FIELD for quantity
+    warehouse_id: '',       // NEW FIELD to select warehouse
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch categories
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -43,7 +46,21 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
         .from('categories')
         .select('*')
         .order('name');
-      
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch warehouses for inventory location selection
+  const { data: warehouses } = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('warehouses')
+        .select('*')
+        .order('name');
+
       if (error) throw error;
       return data || [];
     },
@@ -54,19 +71,44 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from('items').insert({
-        sku: formData.sku,
-        name: formData.name,
-        description: formData.description || null,
-        category_id: formData.category_id || null,
-        unit_price: parseFloat(formData.unit_price) || 0,
-        unit_of_measure: formData.unit_of_measure,
-        min_threshold: parseInt(formData.min_threshold) || 0,
-        max_threshold: parseInt(formData.max_threshold) || 1000,
-        expiration_tracking: formData.expiration_tracking,
-      });
+      // Insert the item first
+      const { data: insertedItems, error: insertItemError } = await supabase
+        .from('items')
+        .insert({
+          sku: formData.sku,
+          name: formData.name,
+          description: formData.description || null,
+          category_id: formData.category_id || null,
+          unit_price: parseFloat(formData.unit_price) || 0,
+          unit_of_measure: formData.unit_of_measure,
+          min_threshold: parseInt(formData.min_threshold) || 0,
+          max_threshold: parseInt(formData.max_threshold) || 1000,
+          expiration_tracking: formData.expiration_tracking,
+        })
+        .select('id'); // get inserted item's id
 
-      if (error) throw error;
+      if (insertItemError || !insertedItems || insertedItems.length === 0) {
+        throw insertItemError || new Error('Failed to insert item');
+      }
+
+      const newItemId = insertedItems[0].id;
+
+      // Insert initial inventory record if warehouse_id is selected and initial_quantity > 0
+      if (formData.warehouse_id && parseInt(formData.initial_quantity) > 0) {
+        const { error: inventoryError } = await supabase
+          .from('inventory')
+          .insert({
+            item_id: newItemId,
+            warehouse_id: formData.warehouse_id,
+            quantity: parseInt(formData.initial_quantity),
+            reserved_quantity: 0,
+            // DO NOT include available_quantity, it is generated
+          });
+
+        if (inventoryError) {
+          throw inventoryError;
+        }
+      }
 
       toast({
         title: 'Success',
@@ -84,9 +126,12 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
         min_threshold: '0',
         max_threshold: '1000',
         expiration_tracking: false,
+        initial_quantity: '0',
+        warehouse_id: '',
       });
 
       queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
       onOpenChange(false);
     } catch (error: any) {
       toast({
@@ -214,6 +259,41 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
                 onChange={(e) => setFormData({ ...formData, max_threshold: e.target.value })}
               />
             </div>
+          </div>
+
+          {/* New input for selecting warehouse */}
+          <div className="space-y-2">
+            <Label htmlFor="warehouse">Warehouse *</Label>
+            <Select
+              value={formData.warehouse_id}
+              onValueChange={(value) => setFormData({ ...formData, warehouse_id: value })}
+              required
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select warehouse" />
+              </SelectTrigger>
+              <SelectContent>
+                {warehouses?.map((warehouse) => (
+                  <SelectItem key={warehouse.id} value={warehouse.id}>
+                    {warehouse.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* New input for initial quantity */}
+          <div className="space-y-2">
+            <Label htmlFor="initial_quantity">Initial Quantity *</Label>
+            <Input
+              id="initial_quantity"
+              type="number"
+              min="0"
+              value={formData.initial_quantity}
+              onChange={(e) => setFormData({ ...formData, initial_quantity: e.target.value })}
+              required
+              placeholder="0"
+            />
           </div>
 
           <div className="flex items-center space-x-2">
