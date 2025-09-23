@@ -15,7 +15,7 @@ import { PurchaseOrder } from "./PurchaseOrderTable";
 
 interface ItemRow {
   id: string;
-  item_id: { id: string; name: string };
+  item_id: { id: string; name: string; unit_price?: number }; // added unit_price
   quantity: number;
   price: number;
 }
@@ -59,7 +59,7 @@ export default function ViewPurchaseOrderModal({
   async function fetchItems() {
     const { data, error } = await supabase
       .from("purchase_order_items")
-      .select("id, quantity, price, item_id(id,name)")
+      .select("id, quantity, price, item_id(id,name,unit_price)")  // <-- fetch unit_price here
       .eq("purchase_order_id", purchaseOrder.id);
 
     if (error) {
@@ -106,17 +106,22 @@ export default function ViewPurchaseOrderModal({
 
       if (error) throw error;
 
-      const stockItems = items.map((it) => ({
-        item_id: it.item_id.id,
-        warehouse_id: selectedWarehouseId,
-        transaction_type: "stock-in",
-        quantity: it.quantity,
-        reference_number: purchaseOrder.po_number,
-        notes: `Receipt from PO ${purchaseOrder.po_number}`,
-        unit_cost: it.price,
-        total_cost: it.quantity * it.price,
-        created_at: new Date().toISOString(),
-      }));
+      const stockItems = items.map((it) => {
+        // Use item price if > 0, else fallback to unit_price
+        const unitCost = it.price !== 0 ? it.price : it.item_id.unit_price ?? 0;
+
+        return {
+          item_id: it.item_id.id,
+          warehouse_id: selectedWarehouseId,
+          transaction_type: "stock-in",
+          quantity: it.quantity,
+          reference_number: purchaseOrder.po_number,
+          notes: `Receipt from PO ${purchaseOrder.po_number}`,
+          unit_cost: unitCost,
+          total_cost: unitCost * it.quantity,
+          created_at: new Date().toISOString(),
+        };
+      });
 
       const { error: stError } = await supabase.from("stock_transactions").insert(stockItems);
 
@@ -131,6 +136,12 @@ export default function ViewPurchaseOrderModal({
       setLoading(false);
     }
   }
+
+  // Calculate total cost from items using price fallback to unit_price
+  const total = items.reduce((acc, it) => {
+    const price = it.price !== 0 ? it.price : it.item_id.unit_price ?? 0;
+    return acc + price * it.quantity;
+  }, 0);
 
   if (!open) return null;
 
@@ -160,12 +171,17 @@ export default function ViewPurchaseOrderModal({
             <h3 className="font-semibold mb-2">Items</h3>
             <ul className="list-disc list-inside border rounded p-2 bg-muted">
               {items.length === 0 && <li>No items in PO.</li>}
-              {items.map((it) => (
-                <li key={it.id}>
-                  {it.item_id.name} — Qty: {it.quantity} @ ${it.price.toFixed(2)} each
-                </li>
-              ))}
+              {items.map((it) => {
+                const price = it.price !== 0 ? it.price : it.item_id.unit_price ?? 0;
+                return (
+                  <li key={it.id}>
+                    {it.item_id.name} — Qty: {it.quantity} @ ${price.toFixed(2)} each
+                  </li>
+                );
+              })}
             </ul>
+            {/* Display total here */}
+            <div className="mt-4 font-semibold text-right">Total: ${total.toFixed(2)}</div>
           </div>
 
           {purchaseOrder.status.toLowerCase().trim() !== "approved" && (
