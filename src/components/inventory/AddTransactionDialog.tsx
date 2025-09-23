@@ -90,7 +90,6 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
         description: 'Transaction recorded successfully!',
       });
 
-      // Reset form
       setFormData({
         item_id: '',
         warehouse_id: '',

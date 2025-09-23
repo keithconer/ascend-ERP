@@ -3,23 +3,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Edit, Trash2, Search, Plus, MapPin } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Edit, Trash2, Search, Plus, MapPin, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AddWarehouseDialog } from './AddWarehouseDialog';
 
 export const WarehouseManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddWarehouse, setShowAddWarehouse] = useState(false);
+  const [editingWarehouse, setEditingWarehouse] = useState<any>(null); // for modal
+  const [editName, setEditName] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -42,7 +39,6 @@ export const WarehouseManagement = () => {
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
-      
       if (error) throw error;
       return data || [];
     },
@@ -51,7 +47,6 @@ export const WarehouseManagement = () => {
   const handleDeleteWarehouse = async (warehouseId: string, warehouseName: string) => {
     if (!confirm(`Are you sure you want to delete "${warehouseName}"? This will affect all inventory records for this warehouse.`)) return;
 
-    // Check if warehouse has inventory
     const { data: inventory } = await supabase
       .from('inventory')
       .select('id')
@@ -74,16 +69,9 @@ export const WarehouseManagement = () => {
       .eq('id', warehouseId);
 
     if (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete warehouse. Please try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to delete warehouse.', variant: 'destructive' });
     } else {
-      toast({
-        title: 'Success',
-        description: `${warehouseName} has been deleted.`,
-      });
+      toast({ title: 'Success', description: `${warehouseName} has been deleted.` });
       queryClient.invalidateQueries({ queryKey: ['warehouses'] });
     }
   };
@@ -94,6 +82,33 @@ export const WarehouseManagement = () => {
 
   const getTotalStock = (inventory: any[]) => {
     return inventory?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+  };
+
+  const handleOpenEditModal = (warehouse: any) => {
+    setEditingWarehouse(warehouse);
+    setEditName(warehouse.name || '');
+    setEditAddress(warehouse.address || '');
+    setEditDescription(warehouse.description || '');
+  };
+
+  const handleUpdateWarehouse = async () => {
+    if (!editName.trim()) {
+      toast({ title: 'Error', description: 'Warehouse name cannot be empty', variant: 'destructive' });
+      return;
+    }
+
+    const { error } = await supabase
+      .from('warehouses')
+      .update({ name: editName, address: editAddress, description: editDescription })
+      .eq('id', editingWarehouse.id);
+
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to update warehouse', variant: 'destructive' });
+    } else {
+      toast({ title: 'Success', description: 'Warehouse updated successfully' });
+      setEditingWarehouse(null);
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] });
+    }
   };
 
   if (isLoading) {
@@ -121,7 +136,7 @@ export const WarehouseManagement = () => {
             Add Warehouse
           </Button>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 mt-2">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -145,12 +160,8 @@ export const WarehouseManagement = () => {
                   </div>
                   <Badge variant="default">Active</Badge>
                 </div>
-                {warehouse.address && (
-                  <p className="text-sm text-muted-foreground">{warehouse.address}</p>
-                )}
-                {warehouse.description && (
-                  <p className="text-sm text-muted-foreground">{warehouse.description}</p>
-                )}
+                {warehouse.address && <p className="text-sm text-muted-foreground">{warehouse.address}</p>}
+                {warehouse.description && <p className="text-sm text-muted-foreground">{warehouse.description}</p>}
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="space-y-2">
@@ -168,14 +179,10 @@ export const WarehouseManagement = () => {
                   </div>
                 </div>
                 <div className="flex justify-end space-x-2 mt-4">
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(warehouse)}>
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleDeleteWarehouse(warehouse.id, warehouse.name)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => handleDeleteWarehouse(warehouse.id, warehouse.name)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -190,10 +197,35 @@ export const WarehouseManagement = () => {
         </div>
       </CardContent>
 
-      <AddWarehouseDialog 
-        open={showAddWarehouse} 
-        onOpenChange={setShowAddWarehouse} 
+<Dialog open={!!editingWarehouse} onOpenChange={() => setEditingWarehouse(null)}>
+  <DialogContent className="sm:max-w-md">
+    <DialogHeader>
+      <DialogTitle>Edit Warehouse</DialogTitle>
+    </DialogHeader>
+    <div className="space-y-3 mt-2">
+      <Input
+        placeholder="Warehouse Name"
+        value={editName}
+        onChange={(e) => setEditName(e.target.value)}
       />
+      <Input
+        placeholder="Address"
+        value={editAddress}
+        onChange={(e) => setEditAddress(e.target.value)}
+      />
+      <Input
+        placeholder="Description"
+        value={editDescription}
+        onChange={(e) => setEditDescription(e.target.value)}
+      />
+      <Button className="w-full" onClick={handleUpdateWarehouse}>
+        Save Changes
+      </Button>
+    </div>
+  </DialogContent>
+</Dialog>
+
+      <AddWarehouseDialog open={showAddWarehouse} onOpenChange={setShowAddWarehouse} />
     </Card>
   );
 };

@@ -46,7 +46,6 @@ export const AddWarehouseDialog = ({ open, onOpenChange }: AddWarehouseDialogPro
         description: 'Warehouse added successfully!',
       });
 
-      // Reset form
       setFormData({
         name: '',
         address: '',

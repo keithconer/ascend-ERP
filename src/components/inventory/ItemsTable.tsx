@@ -1,23 +1,23 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Edit, Trash2, Search } from 'lucide-react';
+import { Edit, Trash2, Search, X } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export const ItemsTable = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editUnitPrice, setEditUnitPrice] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -26,15 +26,7 @@ export const ItemsTable = () => {
     queryFn: async () => {
       let query = supabase
         .from('items')
-        .select(`
-          *,
-          categories(name),
-          inventory(
-            quantity,
-            available_quantity,
-            warehouses(name)
-          )
-        `)
+        .select(`*, categories(name), inventory(quantity, available_quantity, warehouses(name))`)
         .eq('is_active', true);
 
       if (searchTerm) {
@@ -42,7 +34,6 @@ export const ItemsTable = () => {
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
-      
       if (error) throw error;
       return data || [];
     },
@@ -57,16 +48,9 @@ export const ItemsTable = () => {
       .eq('id', itemId);
 
     if (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete item. Please try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to delete item.', variant: 'destructive' });
     } else {
-      toast({
-        title: 'Success',
-        description: `${itemName} has been deleted.`,
-      });
+      toast({ title: 'Success', description: `${itemName} has been deleted.` });
       queryClient.invalidateQueries({ queryKey: ['items'] });
     }
   };
@@ -85,6 +69,39 @@ export const ItemsTable = () => {
     if (totalQty <= item.min_threshold) return { status: 'Low Stock', variant: 'destructive' as const };
     if (totalQty >= item.max_threshold) return { status: 'Overstock', variant: 'secondary' as const };
     return { status: 'In Stock', variant: 'default' as const };
+  };
+
+  const handleOpenEditModal = (item: any) => {
+    setEditingItem(item);
+    setEditName(item.name || '');
+    setEditDescription(item.description || '');
+    setEditUnitPrice(item.unit_price?.toString() || '');
+  };
+
+  const handleUpdateItem = async () => {
+    if (!editName.trim()) {
+      toast({ title: 'Error', description: 'Item name cannot be empty', variant: 'destructive' });
+      return;
+    }
+
+    const price = parseFloat(editUnitPrice);
+    if (isNaN(price) || price < 0) {
+      toast({ title: 'Error', description: 'Invalid unit price', variant: 'destructive' });
+      return;
+    }
+
+    const { error } = await supabase
+      .from('items')
+      .update({ name: editName, description: editDescription, unit_price: price })
+      .eq('id', editingItem.id);
+
+    if (error) {
+      toast({ title: 'Error', description: 'Failed to update item', variant: 'destructive' });
+    } else {
+      toast({ title: 'Success', description: 'Item updated successfully' });
+      setEditingItem(null);
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+    }
   };
 
   if (isLoading) {
@@ -106,7 +123,7 @@ export const ItemsTable = () => {
     <Card>
       <CardHeader>
         <CardTitle>Items & Products</CardTitle>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 mt-2">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -142,28 +159,20 @@ export const ItemsTable = () => {
                     <TableCell>
                       <div>
                         <p className="font-medium">{item.name}</p>
-                        {item.description && (
-                          <p className="text-sm text-muted-foreground">{item.description}</p>
-                        )}
+                        {item.description && <p className="text-sm text-muted-foreground">{item.description}</p>}
                       </div>
                     </TableCell>
                     <TableCell>{item.categories?.name || 'Uncategorized'}</TableCell>
                     <TableCell>${item.unit_price?.toFixed(2) || '0.00'}</TableCell>
                     <TableCell>{getTotalQuantity(item.inventory)} {item.unit_of_measure}</TableCell>
                     <TableCell>{getAvailableQuantity(item.inventory)} {item.unit_of_measure}</TableCell>
-                    <TableCell>
-                      <Badge variant={stockStatus.variant}>{stockStatus.status}</Badge>
-                    </TableCell>
+                    <TableCell><Badge variant={stockStatus.variant}>{stockStatus.status}</Badge></TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(item)}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDeleteItem(item.id, item.name)}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => handleDeleteItem(item.id, item.name)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -182,6 +191,36 @@ export const ItemsTable = () => {
           </Table>
         </div>
       </CardContent>
+
+      <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
+  <DialogContent className="sm:max-w-md">
+    <DialogHeader>
+      <DialogTitle>Edit Item</DialogTitle>
+    </DialogHeader>
+    <div className="space-y-3 mt-2">
+      <Input
+        placeholder="Item Name"
+        value={editName}
+        onChange={(e) => setEditName(e.target.value)}
+      />
+      <Input
+        placeholder="Description"
+        value={editDescription}
+        onChange={(e) => setEditDescription(e.target.value)}
+      />
+      <Input
+        placeholder="Unit Price"
+        type="text"
+        value={editUnitPrice}
+        onChange={(e) => setEditUnitPrice(e.target.value)}
+      />
+      <Button className="w-full" onClick={handleUpdateItem}>
+        Save Changes
+      </Button>
+    </div>
+  </DialogContent>
+</Dialog>
+
     </Card>
   );
 };
