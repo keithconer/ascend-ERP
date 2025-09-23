@@ -5,18 +5,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"; // if you have a select component
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 interface RequisitionOption {
   id: string;
-  po_number?: string; // or just id
-  // maybe requested_by if you want to show
-}
-
-interface SupplierOption {
-  id: string;
-  name: string;
+  requested_by: string; // supplier name text from requisition
 }
 
 interface ItemOption {
@@ -36,18 +36,22 @@ interface PurchaseOrderFormProps {
   onCreated: () => void;
 }
 
-export default function PurchaseOrderForm({ open, onClose, onCreated }: PurchaseOrderFormProps) {
+export default function PurchaseOrderForm({
+  open,
+  onClose,
+  onCreated,
+}: PurchaseOrderFormProps) {
   const [requisitions, setRequisitions] = useState<RequisitionOption[]>([]);
-  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [itemsOptions, setItemsOptions] = useState<ItemOption[]>([]);
 
   const [selectedRequisition, setSelectedRequisition] = useState<string | null>(null);
-  const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
-  const [orderDate, setOrderDate] = useState<string>(new Date().toISOString().slice(0,10));
+  const [supplierName, setSupplierName] = useState<string>(""); // supplier text from requisition.requested_by
+
+  const [orderDate, setOrderDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState<string>("");
 
   const [formItems, setFormItems] = useState<FormItem[]>([
-    { itemId: "", quantity: 1, price: 0 }
+    { itemId: "", quantity: 1, price: 0 },
   ]);
 
   const [loading, setLoading] = useState(false);
@@ -56,34 +60,22 @@ export default function PurchaseOrderForm({ open, onClose, onCreated }: Purchase
   useEffect(() => {
     if (open) {
       fetchRequisitions();
-      fetchSuppliers();
       fetchItems();
     }
   }, [open]);
 
   async function fetchRequisitions() {
-    // fetch requisitions with status = "approved"
+    // fetch approved requisitions with requested_by
     const { data, error } = await supabase
       .from("purchase_requisitions")
       .select("id, requested_by")
       .eq("status", "approved")
       .order("request_date", { ascending: false });
+
     if (error) {
       toast({ title: "Error loading requisitions", description: error.message });
     } else {
       setRequisitions(data || []);
-    }
-  }
-
-  async function fetchSuppliers() {
-    const { data, error } = await supabase
-      .from("suppliers")
-      .select("id, name")
-      .order("name");
-    if (error) {
-      toast({ title: "Error loading suppliers", description: error.message });
-    } else {
-      setSuppliers(data || []);
     }
   }
 
@@ -92,12 +84,23 @@ export default function PurchaseOrderForm({ open, onClose, onCreated }: Purchase
       .from("items")
       .select("id, name")
       .order("name");
+
     if (error) {
       toast({ title: "Error loading items", description: error.message });
     } else {
       setItemsOptions(data || []);
     }
   }
+
+  // Update supplier name when requisition changes
+  useEffect(() => {
+    if (selectedRequisition) {
+      const selected = requisitions.find((r) => r.id === selectedRequisition);
+      setSupplierName(selected?.requested_by || "");
+    } else {
+      setSupplierName("");
+    }
+  }, [selectedRequisition, requisitions]);
 
   const updateFormItem = (index: number, field: keyof FormItem, value: any) => {
     const newItems = [...formItems];
@@ -127,57 +130,64 @@ export default function PurchaseOrderForm({ open, onClose, onCreated }: Purchase
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     // Validate
-    if (!selectedSupplier) {
-      toast({ title: "Validation error", description: "Supplier is required." });
+    if (!selectedRequisition) {
+      toast({ title: "Validation error", description: "Requisition is required." });
       return;
     }
 
-    if (formItems.some(fi => !fi.itemId || fi.quantity <= 0 || fi.price < 0)) {
-      toast({ title: "Validation error", description: "Please ensure all items are filled correctly." });
+    if (!supplierName) {
+      toast({ title: "Validation error", description: "Supplier name is required." });
+      return;
+    }
+
+    if (formItems.some((fi) => !fi.itemId || fi.quantity <= 0 || fi.price < 0)) {
+      toast({
+        title: "Validation error",
+        description: "Please ensure all items are filled correctly.",
+      });
       return;
     }
 
     setLoading(true);
+
     try {
       const po_number = generatePoNumber();
 
-      // Insert PO
+      // Insert purchase order with supplierName in notes since supplier_id is unknown/empty
       const { data: poData, error: poError } = await supabase
         .from("purchase_orders")
         .insert([
           {
             po_number,
             requisition_id: selectedRequisition,
-            supplier_id: selectedSupplier,
+            // supplier_id: null (no UUID available)
             order_date: orderDate,
             status: "pending",
-            notes,
-          }
+            notes: notes ? `${notes} (Supplier: ${supplierName})` : `Supplier: ${supplierName}`,
+          },
         ])
         .select()
         .single();
 
-      if (poError || !poData) throw poError || new Error("Failed to create PO");
+      if (poError || !poData) throw poError || new Error("Failed to create Purchase Order");
 
-      // Insert PO items
-      const itemsToInsert = formItems.map(fi => ({
+      // Insert purchase order items
+      const itemsToInsert = formItems.map((fi) => ({
         purchase_order_id: poData.id,
         item_id: fi.itemId,
         quantity: fi.quantity,
         price: fi.price,
       }));
 
-      const { error: itemsError } = await supabase
-        .from("purchase_order_items")
-        .insert(itemsToInsert);
+      const { error: itemsError } = await supabase.from("purchase_order_items").insert(itemsToInsert);
 
       if (itemsError) throw itemsError;
 
-      toast({ title: "Purchase Order created", description: `PO ${po_number} created successfully` });
+      toast({ title: "Purchase Order created", description: `PO ${po_number} created successfully.` });
       onCreated();
       onClose();
-
     } catch (error: any) {
       toast({ title: "Error creating Purchase Order", description: error.message });
     } finally {
@@ -192,77 +202,70 @@ export default function PurchaseOrderForm({ open, onClose, onCreated }: Purchase
       <h2 className="text-xl font-semibold mb-4">New Purchase Order</h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Requisition ID Dropdown */}
         <div>
-          <Label>From Requisition (optional)</Label>
+          <Label>Requisition ID</Label>
           <Select
             value={selectedRequisition || ""}
-            onValueChange={val => setSelectedRequisition(val || null)}
+            onValueChange={(val) => setSelectedRequisition(val || null)}
+            required
           >
             <SelectTrigger>
               <SelectValue placeholder="Select requisition" />
             </SelectTrigger>
             <SelectContent>
-              {requisitions.map(r => (
+              {requisitions.map((r) => (
                 <SelectItem key={r.id} value={r.id}>
-                  {r.id.slice(0,8)} — {r.requested_by}
+                  {r.id.slice(0, 8)} — Requested by: {r.requested_by}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
+        {/* Supplier Name (from requisition.requested_by) */}
         <div>
           <Label>Supplier</Label>
-          <Select
-            value={selectedSupplier || ""}
-            onValueChange={val => setSelectedSupplier(val || null)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select supplier" />
-            </SelectTrigger>
-            <SelectContent>
-              {suppliers.map(s => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Input type="text" value={supplierName} readOnly />
         </div>
 
+        {/* Order Date */}
         <div>
           <Label>Order Date</Label>
           <Input
             type="date"
             value={orderDate}
-            onChange={e => setOrderDate(e.target.value)}
+            onChange={(e) => setOrderDate(e.target.value)}
             required
           />
         </div>
 
+        {/* Notes */}
         <div>
           <Label>Notes (optional)</Label>
           <Input
             type="text"
             placeholder="Notes"
             value={notes}
-            onChange={e => setNotes(e.target.value)}
+            onChange={(e) => setNotes(e.target.value)}
           />
         </div>
 
+        {/* Items */}
         <div>
           <Label>Items</Label>
           {formItems.map((fi, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
+            <div key={idx} className="flex gap-2 items-center mb-2">
               <Select
                 value={fi.itemId || ""}
-                onValueChange={val => updateFormItem(idx, "itemId", val)}
+                onValueChange={(val) => updateFormItem(idx, "itemId", val)}
+                required
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select product" />
+                  <SelectValue placeholder="Select item" />
                 </SelectTrigger>
                 <SelectContent>
-                  {itemsOptions.map(it => (
+                  {itemsOptions.map((it) => (
                     <SelectItem key={it.id} value={it.id}>
                       {it.name}
                     </SelectItem>
@@ -274,7 +277,7 @@ export default function PurchaseOrderForm({ open, onClose, onCreated }: Purchase
                 type="number"
                 min={1}
                 value={fi.quantity}
-                onChange={e => updateFormItem(idx, "quantity", Number(e.target.value))}
+                onChange={(e) => updateFormItem(idx, "quantity", Number(e.target.value))}
                 placeholder="Qty"
                 required
                 className="w-20"
@@ -285,7 +288,7 @@ export default function PurchaseOrderForm({ open, onClose, onCreated }: Purchase
                 min={0}
                 step="0.01"
                 value={fi.price}
-                onChange={e => updateFormItem(idx, "price", Number(e.target.value))}
+                onChange={(e) => updateFormItem(idx, "price", Number(e.target.value))}
                 placeholder="Price"
                 required
                 className="w-24"
@@ -302,6 +305,7 @@ export default function PurchaseOrderForm({ open, onClose, onCreated }: Purchase
           </Button>
         </div>
 
+        {/* Submit buttons */}
         <div className="pt-4 space-x-2">
           <Button type="submit" disabled={loading}>
             {loading ? "Creating..." : "Create Purchase Order"}

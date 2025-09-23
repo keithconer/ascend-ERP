@@ -68,7 +68,9 @@ export default function PurchaseOrderTable() {
           quantity,
           price,
           items: items!purchase_order_items_item_id_fkey (
-            name
+            id,
+            name,
+            unit_price
           )
         )
       `)
@@ -83,10 +85,11 @@ export default function PurchaseOrderTable() {
       setPurchaseOrders([]);
     } else {
       const transformed = data.map((po: any) => {
+        // Map items, use items.unit_price as the authoritative price
         const items = po.purchase_order_items.map((i: any) => ({
           item_name: i.items.name,
           quantity: i.quantity,
-          price: i.price,
+          price: i.items.unit_price ?? i.price,
         }));
 
         const total = items.reduce(
@@ -98,7 +101,7 @@ export default function PurchaseOrderTable() {
           id: po.id,
           po_number: po.po_number,
           requisition: po.requisition,
-          supplier: null, // no real supplier used
+          supplier: null, // supplier not used
           order_date: po.order_date,
           status: po.status,
           notes: po.notes,
