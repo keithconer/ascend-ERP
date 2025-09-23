@@ -25,11 +25,6 @@ interface Warehouse {
   name: string;
 }
 
-interface Supplier {
-  id: string;
-  name: string;
-}
-
 interface ViewPurchaseOrderModalProps {
   open: boolean;
   onClose: () => void;
@@ -47,21 +42,17 @@ export default function ViewPurchaseOrderModal({
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [supplier, setSupplier] = useState<Supplier | null>(null);
 
   const { toast } = useToast();
 
-  // Fetch PO items, warehouses, and supplier on open
   useEffect(() => {
     if (open && purchaseOrder) {
       fetchItems();
       fetchWarehouses();
-      fetchSupplier();
     } else {
       setItems([]);
       setWarehouses([]);
       setSelectedWarehouseId(null);
-      setSupplier(null);
     }
   }, [open, purchaseOrder]);
 
@@ -93,28 +84,6 @@ export default function ViewPurchaseOrderModal({
       if (data && data.length > 0) {
         setSelectedWarehouseId(data[0].id);
       }
-    }
-  }
-
-  // Fetch supplier details separately if missing or incomplete in PO
-  async function fetchSupplier() {
-    // Only fetch if supplier info missing or no name
-    if (!purchaseOrder.supplier?.id || purchaseOrder.supplier?.name) {
-      setSupplier(purchaseOrder.supplier || null);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("suppliers")
-      .select("id, name")
-      .eq("id", purchaseOrder.supplier?.id)
-      .single();
-
-    if (error) {
-      // fallback to current supplier or null
-      setSupplier(purchaseOrder.supplier || null);
-    } else {
-      setSupplier(data);
     }
   }
 
@@ -176,14 +145,11 @@ export default function ViewPurchaseOrderModal({
         <div className="mt-4 space-y-4">
           <div>
             <p>
-              <strong>Supplier:</strong> {supplier?.name || "-"}
-            </p>
-            <p>
               <strong>Status:</strong> {purchaseOrder.status}
             </p>
             <p>
               <strong>Order Date:</strong>{" "}
-              {format(new Date(purchaseOrder.order_date), "PPP")}
+              {purchaseOrder.order_date ? format(new Date(purchaseOrder.order_date), "PPP") : "-"}
             </p>
             <p>
               <strong>Notes:</strong> {purchaseOrder.notes || "-"}
@@ -213,9 +179,7 @@ export default function ViewPurchaseOrderModal({
                 value={selectedWarehouseId || ""}
                 onChange={(e) => setSelectedWarehouseId(e.target.value)}
               >
-                {warehouses.length === 0 && (
-                  <option value="">No warehouses available</option>
-                )}
+                {warehouses.length === 0 && <option value="">No warehouses available</option>}
                 {warehouses.map((wh) => (
                   <option key={wh.id} value={wh.id}>
                     {wh.name}
