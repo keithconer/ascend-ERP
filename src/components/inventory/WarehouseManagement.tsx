@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,7 +40,6 @@ export const WarehouseManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddWarehouse, setShowAddWarehouse] = useState(false);
 
-  // New state for edit dialog
   const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
 
   const { toast } = useToast();
@@ -49,50 +50,53 @@ export const WarehouseManagement = () => {
     queryFn: async () => {
       let query = supabase
         .from('warehouses')
-        .select(
-          `
+        .select(`
           *,
           inventory(
             quantity,
             items(name, sku)
           )
-        `
-        )
+        `)
         .eq('is_active', true);
 
       if (searchTerm) {
         query = query.ilike('name', `%${searchTerm}%`);
       }
 
-      const { data, error } = await query.order('created_at', {
-        ascending: false,
-      });
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
       return data || [];
     },
   });
 
-  const handleDeleteWarehouse = async (
-    warehouseId: string,
-    warehouseName: string
-  ) => {
+  const handleDeleteWarehouse = async (warehouseId: string, warehouseName: string) => {
     if (
       !confirm(
-        `Are you sure you want to delete "${warehouseName}"? This will affect all inventory records for this warehouse.`
+        `Are you sure you want to permanently delete "${warehouseName}"? This will remove the warehouse and all related inventory records. This action cannot be undone.`
       )
-    )
+    ) {
       return;
+    }
 
-    // Check if warehouse has inventory
-    const { data: inventory } = await supabase
+    // Check if warehouse still has stock
+    const { data: inventoryWithStock, error: checkError } = await supabase
       .from('inventory')
       .select('id')
       .eq('warehouse_id', warehouseId)
       .gt('quantity', 0)
       .limit(1);
 
-    if (inventory && inventory.length > 0) {
+    if (checkError) {
+      toast({
+        title: 'Error',
+        description: 'Failed to check warehouse inventory.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (inventoryWithStock && inventoryWithStock.length > 0) {
       toast({
         title: 'Cannot Delete',
         description:
@@ -102,12 +106,28 @@ export const WarehouseManagement = () => {
       return;
     }
 
-    const { error } = await supabase
+    // Delete related inventory entries (to satisfy foreign key constraints)
+    const { error: deleteInventoryError } = await supabase
+      .from('inventory')
+      .delete()
+      .eq('warehouse_id', warehouseId);
+
+    if (deleteInventoryError) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete related inventory.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Delete the warehouse
+    const { error: deleteWarehouseError } = await supabase
       .from('warehouses')
-      .update({ is_active: false })
+      .delete()
       .eq('id', warehouseId);
 
-    if (error) {
+    if (deleteWarehouseError) {
       toast({
         title: 'Error',
         description: 'Failed to delete warehouse. Please try again.',
@@ -115,8 +135,8 @@ export const WarehouseManagement = () => {
       });
     } else {
       toast({
-        title: 'Success',
-        description: `${warehouseName} has been deleted.`,
+        title: 'Deleted',
+        description: `${warehouseName} has been permanently deleted.`,
       });
       queryClient.invalidateQueries({ queryKey: ['warehouses'] });
     }
@@ -130,7 +150,6 @@ export const WarehouseManagement = () => {
     return inventory?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
   };
 
-  // Update warehouse handler from dialog
   const handleUpdateWarehouse = async (
     id: string,
     name: string,
@@ -182,7 +201,7 @@ export const WarehouseManagement = () => {
             Add Warehouse
           </Button>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 mt-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -278,7 +297,6 @@ export const WarehouseManagement = () => {
         onOpenChange={setShowAddWarehouse}
       />
 
-      {/* Edit Warehouse Dialog */}
       {editingWarehouse && (
         <EditWarehouseDialog
           warehouse={editingWarehouse}
@@ -297,7 +315,11 @@ type EditWarehouseDialogProps = {
   onSave: (id: string, name: string, address: string) => void;
 };
 
-const EditWarehouseDialog = ({ warehouse, onClose, onSave }: EditWarehouseDialogProps) => {
+const EditWarehouseDialog = ({
+  warehouse,
+  onClose,
+  onSave,
+}: EditWarehouseDialogProps) => {
   const [name, setName] = useState(warehouse.name);
   const [address, setAddress] = useState(warehouse.address || '');
   const [isSaving, setIsSaving] = useState(false);
