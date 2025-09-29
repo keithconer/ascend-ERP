@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +15,7 @@ import { EyeIcon, Trash2Icon } from "lucide-react";
 import { format } from "date-fns";
 import ViewRequisitionModal from "./ViewRequisitionModal";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 
 interface Requisition {
   id: string;
@@ -32,30 +35,44 @@ export default function PurchaseRequisitionTable() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Requisition | null>(null);
   const [showView, setShowView] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchRequisitions();
-  }, []);
+    fetchRequisitions(searchTerm);
+  }, [searchTerm]);
 
-  const fetchRequisitions = async () => {
+  const fetchRequisitions = async (search: string = "") => {
     setLoading(true);
 
-    const { data, error } = await supabase
-    .from("purchase_requisitions")
-    .select(`
-      id,
-      description,
-      status,
-      request_date,
-      supplier_id,
-      suppliers ( name ),
-      purchase_requisition_items (
-        quantity,
-        item_id,
-        items ( name )
-      )
-    `);
+    // Build the query; use !inner join on suppliers to force existence
+    let query = supabase
+      .from("purchase_requisitions")
+      .select(`
+        id,
+        description,
+        status,
+        request_date,
+        supplier_id,
+        suppliers!inner (
+          name
+        ),
+        purchase_requisition_items (
+          quantity,
+          item_id,
+          items (
+            name
+          )
+        )
+      `);
+
+    // If user has typed something to search
+    if (search.trim()) {
+      // filter on the joined supplier name
+      query = query.ilike("suppliers.name", `%${search.trim()}%`);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       toast({
@@ -66,15 +83,16 @@ export default function PurchaseRequisitionTable() {
       return;
     }
 
-    const transformed = data.map((req: any) => ({
+    // Transform data to your Requisition type
+    const transformed = (data || []).map((req: any) => ({
       id: req.id,
       description: req.description,
       status: req.status,
       request_date: req.request_date,
       supplier_id: req.supplier_id,
-      supplier_name: req.suppliers?.name || "Unknown Supplier",
-      items: req.purchase_requisition_items.map((item: any) => ({
-        item_name: item.items.name,
+      supplier_name: req.suppliers?.name ?? "Unknown Supplier",
+      items: (req.purchase_requisition_items || []).map((item: any) => ({
+        item_name: item.items?.name ?? "(Unknown item)",
         quantity: item.quantity,
       })),
     }));
@@ -93,12 +111,22 @@ export default function PurchaseRequisitionTable() {
       toast({ title: "Delete failed", description: error.message });
     } else {
       toast({ title: "Requisition deleted" });
-      fetchRequisitions();
+      fetchRequisitions(searchTerm);
     }
   };
 
   return (
     <>
+      <div className="mb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h2 className="text-xl font-semibold">Purchase Requisitions</h2>
+        <Input
+          placeholder="Search by supplier name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full md:w-64"
+        />
+      </div>
+
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -166,7 +194,7 @@ export default function PurchaseRequisitionTable() {
           onClose={() => setShowView(false)}
           requisition={selected}
           onUpdated={() => {
-            fetchRequisitions();
+            fetchRequisitions(searchTerm);
             setShowView(false);
           }}
         />
