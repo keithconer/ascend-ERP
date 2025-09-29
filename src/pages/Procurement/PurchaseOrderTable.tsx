@@ -13,7 +13,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { EyeIcon, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import PurchaseOrderForm from "./PurchaseOrderForm";
 import ViewPurchaseOrderModal from "./ViewPurchaseOrderModal";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -27,9 +26,7 @@ interface Item {
 interface PurchaseOrder {
   id: string;
   po_number: string;
-  requisition: {
-    id: string;
-  } | null;
+  requisition_id: string | null;
   supplier_name: string;
   order_date: string;
   status: string;
@@ -41,7 +38,6 @@ interface PurchaseOrder {
 export default function PurchaseOrderTable() {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [showView, setShowView] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -53,46 +49,36 @@ export default function PurchaseOrderTable() {
   }, []);
 
   useEffect(() => {
-    // whenever searchTerm changes, refetch with filter
     fetchPurchaseOrders();
   }, [searchTerm]);
 
   async function fetchPurchaseOrders() {
     setLoading(true);
 
-    // Build base query with an inner join for suppliers so name filter works
-    let query = supabase
+    const { data, error } = await supabase
       .from("purchase_orders")
       .select(`
         id,
         po_number,
+        requisition_id,
         order_date,
         status,
         notes,
-        requisition: purchase_requisitions (
-          id
-        ),
-        supplier: suppliers!inner (
+        supplier_id,
+        suppliers (
           name
         ),
         purchase_order_items (
           quantity,
           price,
-          items: items (
-            id,
+          item_id,
+          items (
             name,
             unit_price
           )
         )
       `)
       .order("order_date", { ascending: false });
-
-    // If searchTerm has content, apply filter
-    if (searchTerm.trim()) {
-      query = query.ilike("supplier.name", `%${searchTerm.trim()}%`);
-    }
-
-    const { data, error } = await query;
 
     if (error) {
       toast({
@@ -117,8 +103,8 @@ export default function PurchaseOrderTable() {
         return {
           id: po.id,
           po_number: po.po_number,
-          requisition: po.requisition,
-          supplier_name: po.supplier?.name ?? "Unknown Supplier",
+          requisition_id: po.requisition_id,
+          supplier_name: po.suppliers?.name ?? "Unknown Supplier",
           order_date: po.order_date,
           status: po.status,
           notes: po.notes,
@@ -133,33 +119,58 @@ export default function PurchaseOrderTable() {
     setLoading(false);
   }
 
-  // Removed openNewForm and "New Purchase Order" button usage
-
   function openViewModal(po: PurchaseOrder) {
     setSelected(po);
     setShowView(true);
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(poId: string) {
     const confirmed = window.confirm(
-      "Are you sure you want to delete this purchase order? This action cannot be undone."
+      "Are you sure you want to delete this purchase order, its associated requisition, and receipts? This action cannot be undone."
     );
     if (!confirmed) return;
 
-    setDeletingId(id);
+    setDeletingId(poId);
+
     try {
-      const { error } = await supabase.from("purchase_orders").delete().eq("id", id);
-      if (error) throw error;
+      // Fetch requisition_id from the purchase order
+      const { data: poData, error: fetchError } = await supabase
+        .from("purchase_orders")
+        .select("requisition_id")
+        .eq("id", poId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const requisitionId = poData?.requisition_id;
+
+      // Delete the purchase order (this also deletes related receipts if ON DELETE CASCADE is used)
+      const { error: deletePoError } = await supabase
+        .from("purchase_orders")
+        .delete()
+        .eq("id", poId);
+
+      if (deletePoError) throw deletePoError;
+
+      // Delete associated requisition, if it exists
+      if (requisitionId) {
+        const { error: deleteReqError } = await supabase
+          .from("purchase_requisitions")
+          .delete()
+          .eq("id", requisitionId);
+
+        if (deleteReqError) throw deleteReqError;
+      }
 
       toast({
-        title: "Purchase order deleted",
+        title: "Purchase order and requisition deleted",
         variant: "success",
       });
 
       fetchPurchaseOrders();
     } catch (err: any) {
       toast({
-        title: "Failed to delete purchase order",
+        title: "Failed to delete",
         description: err.message || "Unknown error",
         variant: "destructive",
       });
@@ -179,7 +190,6 @@ export default function PurchaseOrderTable() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="md:w-64"
           />
-          {/* Removed New Purchase Order Button */}
         </div>
       </div>
 
@@ -208,7 +218,7 @@ export default function PurchaseOrderTable() {
             {purchaseOrders.map((po) => (
               <TableRow key={po.id}>
                 <TableCell>{po.po_number}</TableCell>
-                <TableCell>{po.requisition?.id ? po.requisition.id.slice(0, 8) : "-"}</TableCell>
+                <TableCell>{po.requisition_id?.slice(0, 8) ?? "-"}</TableCell>
                 <TableCell>{po.supplier_name}</TableCell>
                 <TableCell>{format(new Date(po.order_date), "PPP")}</TableCell>
                 <TableCell>{po.status}</TableCell>
@@ -241,8 +251,6 @@ export default function PurchaseOrderTable() {
           </TableBody>
         </Table>
       </div>
-
-      {/* Removed PurchaseOrderForm usage since no new PO creation */}
 
       {selected && showView && (
         <ViewPurchaseOrderModal
