@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,30 +18,42 @@ import { AddTransactionDialog } from './AddTransactionDialog';
 
 export const StockTransactions = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showAddTransaction, setShowAddTransaction] = useState(false);
 
+  // Debounce search input (300ms delay)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim().toLowerCase());
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Fetch all transactions (limit to 100)
   const { data: transactions, isLoading } = useQuery({
-    queryKey: ['stock-transactions', searchTerm],
+    queryKey: ['stock-transactions'],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from('stock_transactions')
         .select(`
           *,
           items(name, sku),
           warehouses(name)
         `)
-        .order('created_at', { ascending: false });
-
-      if (searchTerm) {
-        query = query.or(`reference_number.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
-      }
-
-      const { data, error } = await query.limit(100);
-      
+        .order('created_at', { ascending: false })
+        .limit(100);
       if (error) throw error;
       return data || [];
     },
   });
+
+  // Filter transactions by items.name on client side
+  const filteredTransactions = useMemo(() => {
+    if (!debouncedSearch) return transactions || [];
+    return (transactions || []).filter(tx =>
+      tx.items?.name.toLowerCase().includes(debouncedSearch)
+    );
+  }, [debouncedSearch, transactions]);
 
   const getTransactionBadge = (type: string) => {
     switch (type) {
@@ -83,11 +95,11 @@ export const StockTransactions = () => {
             Add Transaction
           </Button>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 mt-2">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by reference number or notes..."
+              placeholder="Search by item name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-8"
@@ -111,30 +123,31 @@ export const StockTransactions = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transactions?.map((transaction) => (
-                <TableRow key={transaction.id}>
-                  <TableCell>
-                    {new Date(transaction.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{transaction.items?.name}</p>
-                      <p className="text-sm text-muted-foreground">{transaction.items?.sku}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{transaction.warehouses?.name}</TableCell>
-                  <TableCell>{getTransactionBadge(transaction.transaction_type)}</TableCell>
-                  <TableCell>
-                    <span className={transaction.transaction_type === 'stock-out' ? 'text-red-600' : 'text-green-600'}>
-                      {transaction.transaction_type === 'stock-out' ? '-' : '+'}{transaction.quantity}
-                    </span>
-                  </TableCell>
-                  <TableCell>{transaction.reference_number || '-'}</TableCell>
-                  <TableCell>${transaction.unit_cost?.toFixed(2) || '-'}</TableCell>
-                  <TableCell>${transaction.total_cost?.toFixed(2) || '-'}</TableCell>
-                </TableRow>
-              ))}
-              {(!transactions || transactions.length === 0) && (
+              {filteredTransactions.length > 0 ? (
+                filteredTransactions.map((transaction) => (
+                  <TableRow key={transaction.id}>
+                    <TableCell>
+                      {new Date(transaction.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{transaction.items?.name}</p>
+                        <p className="text-sm text-muted-foreground">{transaction.items?.sku}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{transaction.warehouses?.name}</TableCell>
+                    <TableCell>{getTransactionBadge(transaction.transaction_type)}</TableCell>
+                    <TableCell>
+                      <span className={transaction.transaction_type === 'stock-out' ? 'text-red-600' : 'text-green-600'}>
+                        {transaction.transaction_type === 'stock-out' ? '-' : '+'}{transaction.quantity}
+                      </span>
+                    </TableCell>
+                    <TableCell>{transaction.reference_number || '-'}</TableCell>
+                    <TableCell>${transaction.unit_cost?.toFixed(2) || '-'}</TableCell>
+                    <TableCell>${transaction.total_cost?.toFixed(2) || '-'}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8">
                     <p className="text-muted-foreground">No transactions found.</p>
@@ -146,9 +159,9 @@ export const StockTransactions = () => {
         </div>
       </CardContent>
 
-      <AddTransactionDialog 
-        open={showAddTransaction} 
-        onOpenChange={setShowAddTransaction} 
+      <AddTransactionDialog
+        open={showAddTransaction}
+        onOpenChange={setShowAddTransaction}
       />
     </Card>
   );
