@@ -133,10 +133,7 @@ export default function PurchaseOrderTable() {
     setLoading(false);
   }
 
-  function openNewForm() {
-    setSelected(null);
-    setShowForm(true);
-  }
+  // Removed openNewForm and "New Purchase Order" button usage
 
   function openViewModal(po: PurchaseOrder) {
     setSelected(po);
@@ -182,7 +179,7 @@ export default function PurchaseOrderTable() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="md:w-64"
           />
-          <Button onClick={openNewForm}>New Purchase Order</Button>
+          {/* Removed New Purchase Order Button */}
         </div>
       </div>
 
@@ -245,13 +242,7 @@ export default function PurchaseOrderTable() {
         </Table>
       </div>
 
-      {showForm && (
-        <PurchaseOrderForm
-          open={showForm}
-          onClose={() => setShowForm(false)}
-          onCreated={fetchPurchaseOrders}
-        />
-      )}
+      {/* Removed PurchaseOrderForm usage since no new PO creation */}
 
       {selected && showView && (
         <ViewPurchaseOrderModal
