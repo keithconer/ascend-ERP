@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,21 +29,23 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@
 
 export const ItemsTable = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Edit modal state
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
-
-  // Editable fields state
   const [editName, setEditName] = useState('');
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [editUnitPrice, setEditUnitPrice] = useState<number | ''>('');
-  // New state: For editing available quantity (sum across inventory)
   const [editAvailableQuantity, setEditAvailableQuantity] = useState<number | ''>('');
 
-  // Fetch categories
+  // Debounce search term to prevent character-by-character fetch
+  useEffect(() => {
+    const delay = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(delay);
+  }, [searchTerm]);
+
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -54,9 +58,8 @@ export const ItemsTable = () => {
     },
   });
 
-  // Fetch items with inventory and categories
   const { data: items, isLoading } = useQuery({
-    queryKey: ['items', searchTerm],
+    queryKey: ['items', debouncedSearch],
     queryFn: async () => {
       let query = supabase
         .from('items')
@@ -74,12 +77,11 @@ export const ItemsTable = () => {
         `)
         .eq('is_active', true);
 
-      if (searchTerm) {
-        query = query.or(`name.ilike.%${searchTerm}%,sku.ilike.%${searchTerm}%`);
+      if (debouncedSearch) {
+        query = query.ilike('name', `%${debouncedSearch}%`);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
-
       if (error) throw error;
       return data || [];
     },
@@ -87,13 +89,12 @@ export const ItemsTable = () => {
 
   const handleDeleteItem = async (itemId: string, itemName: string) => {
     if (!confirm(`Are you sure you want to permanently delete "${itemName}"? This action cannot be undone.`)) return;
-  
-    // First, delete related inventory entries (if any) to satisfy FK constraints
+
     const { error: inventoryError } = await supabase
       .from('inventory')
       .delete()
       .eq('item_id', itemId);
-  
+
     if (inventoryError) {
       toast({
         title: 'Error',
@@ -102,13 +103,12 @@ export const ItemsTable = () => {
       });
       return;
     }
-  
-    // Now delete the item itself
+
     const { error: itemError } = await supabase
       .from('items')
       .delete()
       .eq('id', itemId);
-  
+
     if (itemError) {
       toast({
         title: 'Error',
@@ -124,33 +124,26 @@ export const ItemsTable = () => {
     }
   };
 
-  const getTotalQuantity = (inventoryRecords: any[]) => {
-    return inventoryRecords?.reduce((sum, record) => sum + (record.quantity || 0), 0) || 0;
-  };
+  const getTotalQuantity = (inventory: any[]) =>
+    inventory?.reduce((sum, r) => sum + (r.quantity || 0), 0) || 0;
 
-  const getAvailableQuantity = (inventoryRecords: any[]) => {
-    return inventoryRecords?.reduce((sum, record) => sum + (record.available_quantity || 0), 0) || 0;
-  };
+  const getAvailableQuantity = (inventory: any[]) =>
+    inventory?.reduce((sum, r) => sum + (r.available_quantity || 0), 0) || 0;
 
   const getStockStatus = (item: any) => {
-    const totalQty = getTotalQuantity(item.inventory);
-    if (totalQty === 0) return { status: 'Out of Stock', variant: 'destructive' as const };
-    if (totalQty <= item.min_threshold) return { status: 'Low Stock', variant: 'destructive' as const };
-    if (totalQty >= item.max_threshold) return { status: 'Overstock', variant: 'secondary' as const };
-    return { status: 'In Stock', variant: 'default' as const };
+    const total = getTotalQuantity(item.inventory);
+    if (total === 0) return { status: 'Out of Stock', variant: 'destructive' };
+    if (total <= item.min_threshold) return { status: 'Low Stock', variant: 'destructive' };
+    if (total >= item.max_threshold) return { status: 'Overstock', variant: 'secondary' };
+    return { status: 'In Stock', variant: 'default' };
   };
 
-  // Open edit modal and set fields (including available quantity)
   const openEditModal = (item: any) => {
     setEditItem(item);
     setEditName(item.name || '');
     setEditCategoryId(item.categories?.id || null);
     setEditUnitPrice(item.unit_price ?? '');
-
-    // Set available quantity to total available quantity across warehouses
-    const totalAvailableQty = getAvailableQuantity(item.inventory);
-    setEditAvailableQuantity(totalAvailableQty);
-
+    setEditAvailableQuantity(getAvailableQuantity(item.inventory));
     setIsEditOpen(true);
   };
 
@@ -160,24 +153,22 @@ export const ItemsTable = () => {
     setEditAvailableQuantity('');
   };
 
-  // Save edit (including updating available quantity in inventory)
   const handleSaveEdit = async () => {
     if (!editName.trim()) {
       toast({ title: 'Validation Error', description: 'Name cannot be empty.', variant: 'destructive' });
       return;
     }
     if (editUnitPrice === '' || editUnitPrice < 0) {
-      toast({ title: 'Validation Error', description: 'Unit Price must be a positive number.', variant: 'destructive' });
+      toast({ title: 'Validation Error', description: 'Unit Price must be positive.', variant: 'destructive' });
       return;
     }
     if (editAvailableQuantity === '' || editAvailableQuantity < 0) {
-      toast({ title: 'Validation Error', description: 'Available Quantity must be a non-negative number.', variant: 'destructive' });
+      toast({ title: 'Validation Error', description: 'Available Quantity must be non-negative.', variant: 'destructive' });
       return;
     }
 
     setIsEditOpen(false);
 
-    // Update item fields
     const updates: any = {
       name: editName,
       unit_price: editUnitPrice,
@@ -195,27 +186,7 @@ export const ItemsTable = () => {
       return;
     }
 
-    // Now update inventory quantities to reflect new available quantity
-    // Strategy: Distribute the available quantity proportionally or just update total quantity on the first warehouse inventory record for simplicity
-
-    if (!editItem.inventory || editItem.inventory.length === 0) {
-      // No inventory record exists for this item, create one for first warehouse (assuming first warehouse exists)
-      const firstWarehouseId = null; // you may want to fetch default warehouse id here or alert user
-
-      toast({
-        title: 'Warning',
-        description: 'No inventory record found for this item, cannot update quantity.',
-        variant: 'destructive',
-      });
-
-      queryClient.invalidateQueries({ queryKey: ['items'] });
-      return;
-    }
-
-    // For simplicity, update quantity on the first inventory record to achieve desired available quantity
-    // Calculate new quantity = desired available quantity + reserved_quantity (keep reserved_quantity same)
     const inventoryRecord = editItem.inventory[0];
-
     const newQuantity = editAvailableQuantity + (inventoryRecord.reserved_quantity || 0);
 
     const { error: invError } = await supabase
@@ -229,24 +200,9 @@ export const ItemsTable = () => {
       return;
     }
 
-    toast({ title: 'Success', description: 'Item and inventory updated successfully.' });
+    toast({ title: 'Success', description: 'Item and inventory updated.' });
     queryClient.invalidateQueries({ queryKey: ['items'] });
   };
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Items & Products</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32">
-            <p className="text-muted-foreground">Loading items...</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <>
@@ -257,7 +213,7 @@ export const ItemsTable = () => {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search items by name or SKU..."
+                placeholder="Search by product name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8"
@@ -325,9 +281,7 @@ export const ItemsTable = () => {
                 {(!items || items.length === 0) && (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8">
-                      <p className="text-muted-foreground">
-                        No items found. Add your first item to get started.
-                      </p>
+                      <p className="text-muted-foreground">No items found.</p>
                     </TableCell>
                   </TableRow>
                 )}
@@ -337,7 +291,6 @@ export const ItemsTable = () => {
         </CardContent>
       </Card>
 
-      {/* Edit Modal */}
       <Dialog open={isEditOpen} onOpenChange={closeEditModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -346,9 +299,7 @@ export const ItemsTable = () => {
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
-              <label htmlFor="edit-name" className="block font-semibold mb-1">
-                Name
-              </label>
+              <label htmlFor="edit-name" className="block font-semibold mb-1">Name</label>
               <Input
                 id="edit-name"
                 value={editName}
@@ -356,47 +307,31 @@ export const ItemsTable = () => {
                 placeholder="Item name"
               />
             </div>
-
             <div>
-              <label htmlFor="edit-category" className="block font-semibold mb-1">
-                Category
-              </label>
-              <Select
-                onValueChange={(value) => setEditCategoryId(value)}
-                value={editCategoryId || ''}
-              >
-                <SelectTrigger id="edit-category" className="w-full">
+              <label htmlFor="edit-category" className="block font-semibold mb-1">Category</label>
+              <Select onValueChange={(val) => setEditCategoryId(val)} value={editCategoryId || ''}>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories?.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
             <div>
-              <label htmlFor="edit-unit-price" className="block font-semibold mb-1">
-                Unit Price
-              </label>
+              <label htmlFor="edit-unit-price" className="block font-semibold mb-1">Unit Price</label>
               <Input
                 id="edit-unit-price"
                 type="number"
                 min={0}
                 step={0.01}
                 value={editUnitPrice}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setEditUnitPrice(val === '' ? '' : parseFloat(val));
-                }}
+                onChange={(e) => setEditUnitPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
                 placeholder="Unit Price"
               />
             </div>
-
-            {/* New available quantity field */}
             <div>
               <label htmlFor="edit-available-quantity" className="block font-semibold mb-1">
                 Available Quantity
@@ -407,19 +342,15 @@ export const ItemsTable = () => {
                 min={0}
                 step={1}
                 value={editAvailableQuantity}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setEditAvailableQuantity(val === '' ? '' : parseInt(val, 10));
-                }}
+                onChange={(e) =>
+                  setEditAvailableQuantity(e.target.value === '' ? '' : parseInt(e.target.value, 10))
+                }
                 placeholder="Available Quantity"
               />
             </div>
           </div>
-
           <DialogFooter className="mt-4 flex justify-end space-x-2">
-            <Button variant="outline" onClick={closeEditModal}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={closeEditModal}>Cancel</Button>
             <Button onClick={handleSaveEdit}>Save</Button>
           </DialogFooter>
         </DialogContent>
