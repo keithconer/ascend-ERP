@@ -86,14 +86,30 @@ export const ItemsTable = () => {
   });
 
   const handleDeleteItem = async (itemId: string, itemName: string) => {
-    if (!confirm(`Are you sure you want to delete "${itemName}"?`)) return;
-
-    const { error } = await supabase
+    if (!confirm(`Are you sure you want to permanently delete "${itemName}"? This action cannot be undone.`)) return;
+  
+    // First, delete related inventory entries (if any) to satisfy FK constraints
+    const { error: inventoryError } = await supabase
+      .from('inventory')
+      .delete()
+      .eq('item_id', itemId);
+  
+    if (inventoryError) {
+      toast({
+        title: 'Error',
+        description: `Failed to delete inventory related to "${itemName}".`,
+        variant: 'destructive',
+      });
+      return;
+    }
+  
+    // Now delete the item itself
+    const { error: itemError } = await supabase
       .from('items')
-      .update({ is_active: false })
+      .delete()
       .eq('id', itemId);
-
-    if (error) {
+  
+    if (itemError) {
       toast({
         title: 'Error',
         description: 'Failed to delete item. Please try again.',
@@ -101,8 +117,8 @@ export const ItemsTable = () => {
       });
     } else {
       toast({
-        title: 'Success',
-        description: `${itemName} has been deleted.`,
+        title: 'Deleted',
+        description: `"${itemName}" has been permanently deleted.`,
       });
       queryClient.invalidateQueries({ queryKey: ['items'] });
     }
