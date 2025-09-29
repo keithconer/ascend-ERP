@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -25,33 +27,41 @@ export default function SupplierManagement() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // For add/edit form fields
   const [name, setName] = useState("");
   const [contactInfo, setContactInfo] = useState("");
   const [address, setAddress] = useState("");
 
-  // Track if editing or adding new
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
 
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchSuppliers();
-  }, []);
+    fetchSuppliers(searchTerm);
+  }, [searchTerm]);
 
-  async function fetchSuppliers() {
+  async function fetchSuppliers(search: string = "") {
     setLoading(true);
-    const { data, error } = await supabase
+
+    let query = supabase
       .from("suppliers")
       .select("*")
       .order("created_at", { ascending: false });
+
+    if (search.trim()) {
+      query = query.ilike("name", `%${search.trim()}%`);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       toast({ title: "Error fetching suppliers", description: error.message });
     } else {
       setSuppliers(data || []);
     }
+
     setLoading(false);
   }
 
@@ -90,7 +100,7 @@ export default function SupplierManagement() {
     } else {
       toast({ title: "Supplier added", description: `${name} added successfully.` });
       setOpen(false);
-      fetchSuppliers();
+      fetchSuppliers(searchTerm);
     }
 
     setLoading(false);
@@ -120,7 +130,7 @@ export default function SupplierManagement() {
     } else {
       toast({ title: "Supplier updated", description: `${name} updated successfully.` });
       setOpen(false);
-      fetchSuppliers();
+      fetchSuppliers(searchTerm);
     }
 
     setLoading(false);
@@ -138,7 +148,7 @@ export default function SupplierManagement() {
       toast({ title: "Error deleting supplier", description: error.message });
     } else {
       toast({ title: "Supplier deleted", description: `${name} was deleted successfully.` });
-      fetchSuppliers();
+      fetchSuppliers(searchTerm);
     }
 
     setLoading(false);
@@ -154,9 +164,18 @@ export default function SupplierManagement() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
         <h2 className="text-xl font-semibold">Suppliers</h2>
-        <Button onClick={openAddModal}>Add Supplier</Button>
+
+        <div className="flex gap-2 w-full md:w-auto">
+          <Input
+            placeholder="Search by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="md:w-64"
+          />
+          <Button onClick={openAddModal}>Add Supplier</Button>
+        </div>
       </div>
 
       {loading && <p>Loading...</p>}
@@ -164,7 +183,7 @@ export default function SupplierManagement() {
       {!loading && suppliers.length === 0 && <p>No suppliers found.</p>}
 
       {!loading && suppliers.length > 0 && (
-        <table className="w-full border-collapse border border-gray-300">
+        <table className="w-full border-collapse border border-gray-300 text-sm">
           <thead>
             <tr>
               <th className="border border-gray-300 p-2 text-left">Name</th>
@@ -263,7 +282,13 @@ export default function SupplierManagement() {
               Cancel
             </Button>
             <Button onClick={handleSubmit} disabled={loading}>
-              {loading ? (editingSupplier ? "Updating..." : "Adding...") : (editingSupplier ? "Update Supplier" : "Add Supplier")}
+              {loading
+                ? editingSupplier
+                  ? "Updating..."
+                  : "Adding..."
+                : editingSupplier
+                ? "Update Supplier"
+                : "Add Supplier"}
             </Button>
           </DialogFooter>
         </DialogContent>
