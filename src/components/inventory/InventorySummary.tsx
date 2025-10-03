@@ -1,8 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState } from 'react';
 
 export const InventorySummary = () => {
+  // State for the search query
+  const [searchTerm, setSearchTerm] = useState('');
+
   const { data: inventoryData, isLoading, error } = useQuery({
     queryKey: ['inventory-summary'],
     queryFn: async () => {
@@ -42,6 +46,11 @@ export const InventorySummary = () => {
     cacheTime: 10 * 60 * 1000, // Cache time of 10 minutes
   });
 
+  // Handle search filter logic
+  const filteredInventoryData = inventoryData?.filter((item) =>
+    item.items.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (isLoading) {
     return (
       <Card>
@@ -78,6 +87,17 @@ export const InventorySummary = () => {
         <CardTitle>Inventory Summary</CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Search Input */}
+        <div className="mb-4">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by product name..."
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full table-auto border-collapse border border-gray-200">
             <thead className="bg-gray-100">
@@ -90,7 +110,7 @@ export const InventorySummary = () => {
               </tr>
             </thead>
             <tbody className="bg-white">
-              {inventoryData?.map((item) => {
+              {filteredInventoryData?.map((item) => {
                 const availableQty = item.available_quantity < 0 ? 0 : item.available_quantity;
                 const minThreshold = item.items.min_threshold || 0;
                 const qtyNeeded = minThreshold - availableQty;
