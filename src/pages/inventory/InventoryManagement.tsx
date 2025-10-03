@@ -11,6 +11,7 @@ import { StockTransactions } from '@/components/inventory/StockTransactions';
 import { WarehouseManagement } from '@/components/inventory/WarehouseManagement';
 import { InventoryAlerts } from '@/components/inventory/InventoryAlerts';
 import { AddItemDialog } from '@/components/inventory/AddItemDialog';
+import { InventorySummary } from '@/components/inventory/InventorySummary';
 
 export default function InventoryManagement() {
   const [showAddItem, setShowAddItem] = useState(false);
@@ -103,6 +104,7 @@ export default function InventoryManagement() {
             <TabsTrigger value="transactions">Stock Transactions</TabsTrigger>
             <TabsTrigger value="warehouses">Warehouses</TabsTrigger>
             <TabsTrigger value="alerts">Alerts & Reports</TabsTrigger>
+             <TabsTrigger value="inventorysummary">Inventory Summary</TabsTrigger>
           </TabsList>
 
           <TabsContent value="items">
@@ -119,6 +121,10 @@ export default function InventoryManagement() {
 
           <TabsContent value="alerts">
             <InventoryAlerts />
+          </TabsContent>
+
+             <TabsContent value="inventorysummary">
+            <InventorySummary />
           </TabsContent>
         </Tabs>
 
