@@ -66,16 +66,27 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
     },
   });
 
+  // Function to generate a random SKU
+  const generateSKU = () => {
+    const length = 8;
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let sku = '';
+    for (let i = 0; i < length; i++) {
+      sku += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
+    return sku;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      // Insert the item first
+      // Insert the item first without SKU (leave it empty for now)
       const { data: insertedItems, error: insertItemError } = await supabase
         .from('items')
         .insert({
-          sku: formData.sku,
+          sku: '',  // Leave the SKU empty for now
           name: formData.name,
           description: formData.description || null,
           category_id: formData.category_id || null,
@@ -85,13 +96,37 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
           max_threshold: parseInt(formData.max_threshold) || 1000,
           expiration_tracking: formData.expiration_tracking,
         })
-        .select('id'); // get inserted item's id
+        .select('id'); // Get inserted item's id
 
       if (insertItemError || !insertedItems || insertedItems.length === 0) {
         throw insertItemError || new Error('Failed to insert item');
       }
 
       const newItemId = insertedItems[0].id;
+
+      // Generate a random SKU after the item is inserted
+      const newSKU = generateSKU();
+
+      // Ensure the generated SKU is unique
+      const { data: existingItems } = await supabase
+        .from('items')
+        .select('id')
+        .eq('sku', newSKU);
+
+      if (existingItems && existingItems.length > 0) {
+        // If SKU already exists, regenerate the SKU
+        const retrySKU = generateSKU();
+        await supabase
+          .from('items')
+          .update({ sku: retrySKU })
+          .eq('id', newItemId);
+      } else {
+        // If SKU doesn't exist, update the item with the new SKU
+        await supabase
+          .from('items')
+          .update({ sku: newSKU })
+          .eq('id', newItemId);
+      }
 
       // Insert initial inventory record if warehouse_id is selected and initial_quantity > 0
       if (formData.warehouse_id && parseInt(formData.initial_quantity) > 0) {
@@ -157,9 +192,8 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
               <Input
                 id="sku"
                 value={formData.sku}
-                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                placeholder="Enter SKU"
-                required
+                disabled
+                placeholder="SKU will be generated after the item is added"
               />
             </div>
             <div className="space-y-2">
@@ -300,7 +334,7 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
             <Checkbox
               id="expiration_tracking"
               checked={formData.expiration_tracking}
-              onCheckedChange={(checked) => 
+              onCheckedChange={(checked) =>
                 setFormData({ ...formData, expiration_tracking: checked as boolean })
               }
             />
