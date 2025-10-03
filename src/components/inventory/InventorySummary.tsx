@@ -2,9 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useState } from 'react';
+import * as XLSX from 'xlsx';
 
 export const InventorySummary = () => {
-  // State for the search query
   const [searchTerm, setSearchTerm] = useState('');
 
   const { data: inventoryData, isLoading, error } = useQuery({
@@ -51,6 +51,31 @@ export const InventorySummary = () => {
     item.items.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Function to export the data to Excel
+  const exportToExcel = () => {
+    // Create an array of rows to convert into Excel format
+    const rows = [
+      ['Item', 'Category', 'Qty On Hand', 'Qty Needed', 'Order Amount'], // Header row
+      ...filteredInventoryData?.map((item) => [
+        item.items.name,
+        item.items.categories.name,
+        item.available_quantity < 0 ? 0 : item.available_quantity,
+        item.items.min_threshold,
+        item.items.min_threshold - (item.available_quantity < 0 ? 0 : item.available_quantity),
+      ]) || [],
+    ];
+
+    // Create a worksheet
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // Create a new workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Inventory Summary');
+
+    // Write the Excel file to a buffer
+    XLSX.writeFile(wb, 'Inventory_Summary.xlsx');
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -96,6 +121,16 @@ export const InventorySummary = () => {
             placeholder="Search by product name..."
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+        </div>
+
+        {/* Export Button */}
+        <div className="mb-4">
+          <button
+            onClick={exportToExcel}
+            className="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none"
+          >
+            Download Excel
+          </button>
         </div>
 
         <div className="overflow-x-auto">
