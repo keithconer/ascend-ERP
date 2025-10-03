@@ -3,18 +3,40 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Search, Plus } from 'lucide-react';
 import { AddTransactionDialog } from './AddTransactionDialog';
+
+// Helper function to calculate total stock for each item
+const calculateTotalStock = (transactions: any[]) => {
+  return transactions.reduce((totals: { [key: string]: number }, transaction) => {
+    const { item_id, quantity, transaction_type } = transaction;
+
+    if (!totals[item_id]) {
+      totals[item_id] = 0;
+    }
+
+    // Adjust total stock based on transaction type
+    if (transaction_type === 'stock-in') {
+      totals[item_id] += quantity;
+    } else if (transaction_type === 'stock-out') {
+      totals[item_id] -= quantity;
+    } else if (transaction_type === 'adjustment') {
+      totals[item_id] += quantity; // Assuming adjustment is like stock-in
+    }
+
+    return totals;
+  }, {});
+};
 
 export const StockTransactions = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,12 +64,21 @@ export const StockTransactions = () => {
         `)
         .order('created_at', { ascending: false })
         .limit(100);
+
       if (error) throw error;
       return data || [];
     },
   });
 
-  // Filter transactions by items.name on client side
+  // Calculate the total stock per item
+  const totalStock = useMemo(() => {
+    if (transactions) {
+      return calculateTotalStock(transactions);
+    }
+    return {};
+  }, [transactions]);
+
+  // Filter transactions by item name on client side
   const filteredTransactions = useMemo(() => {
     if (!debouncedSearch) return transactions || [];
     return (transactions || []).filter(tx =>
@@ -138,8 +169,9 @@ export const StockTransactions = () => {
                     <TableCell>{transaction.warehouses?.name}</TableCell>
                     <TableCell>{getTransactionBadge(transaction.transaction_type)}</TableCell>
                     <TableCell>
+                      {/* Show total stock for the item */}
                       <span className={transaction.transaction_type === 'stock-out' ? 'text-red-600' : 'text-green-600'}>
-                        {transaction.transaction_type === 'stock-out' ? '-' : '+'}{transaction.quantity}
+                        {totalStock[transaction.item_id] || 0}
                       </span>
                     </TableCell>
                     <TableCell>{transaction.reference_number || '-'}</TableCell>
