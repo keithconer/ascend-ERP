@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useToast } from "@/hooks/use-toast"
-import { CalendarIcon, Plus, Edit2, X } from "lucide-react"
+import { CalendarIcon, Plus, Edit2, X, Search } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -51,6 +51,8 @@ const Attendance = () => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [editingRecord, setEditingRecord] = useState<AttendanceRecord | null>(null)
   const [filterDate, setFilterDate] = useState<Date | undefined>(new Date())
+  const [searchTerm, setSearchTerm] = useState<string>("")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
   const { toast } = useToast()
 
   useEffect(() => {
@@ -376,6 +378,20 @@ const Attendance = () => {
     return <Badge variant={config.variant}>{config.label}</Badge>
   }
 
+  const formatTime12Hour = (time24: string): string => {
+    if (!time24) return "-"
+    const [hours, minutes] = time24.split(":").map(Number)
+    const period = hours >= 12 ? "PM" : "AM"
+    const hours12 = hours % 12 || 12
+    return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`
+  }
+
+  const filteredRecords = attendanceRecords.filter((record) => {
+    const matchesSearch = record.employee_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesStatus = statusFilter === "all" || record.status === statusFilter
+    return matchesSearch && matchesStatus
+  })
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between space-x-4">
@@ -424,6 +440,41 @@ const Attendance = () => {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Label>Search Employee</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search by employee name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div className="w-[200px]">
+              <Label>Filter by Status</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="present">Present</SelectItem>
+                  <SelectItem value="absent">Absent</SelectItem>
+                  <SelectItem value="late">Late</SelectItem>
+                  <SelectItem value="leave">Leave</SelectItem>
+                  <SelectItem value="clocked_in">Clocked In</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="border-none p-0">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -440,19 +491,19 @@ const Attendance = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {attendanceRecords.length === 0 ? (
+                {filteredRecords.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-muted-foreground">
                       No attendance records found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  attendanceRecords.map((record) => (
+                  filteredRecords.map((record) => (
                     <TableRow key={record.id}>
                       <TableCell>{record.employee_name}</TableCell>
                       <TableCell>{format(new Date(record.date), "MMM dd, yyyy")}</TableCell>
-                      <TableCell>{record.time_in || "-"}</TableCell>
-                      <TableCell>{record.time_out || "-"}</TableCell>
+                      <TableCell>{formatTime12Hour(record.time_in)}</TableCell>
+                      <TableCell>{formatTime12Hour(record.time_out)}</TableCell>
                       <TableCell>{record.hours_worked ? `${record.hours_worked.toFixed(2)}h` : "-"}</TableCell>
                       <TableCell>{getStatusBadge(record.status)}</TableCell>
                       <TableCell>
