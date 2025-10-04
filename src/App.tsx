@@ -1,3 +1,5 @@
+// src/App.tsx
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,6 +8,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import InventoryManagement from "./pages/inventory/InventoryManagement";
 import ProcurementPage from "./pages/Procurement/ProcurementPage";
+import HumanResourcePage from "./pages/humanresources/HumanResourcePage";  // Make sure you import the correct page
 import NotFound from "./pages/NotFound";
 import { ERPLayout } from "@/components/erp/ERPLayout";
 
@@ -35,7 +38,14 @@ const App = () => (
               </ERPLayout>
             }
           />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route
+            path="/hr"  // The /hr route should render HumanResourcePage
+            element={
+              <ERPLayout>
+                <HumanResourcePage />  {/* Render the HumanResourcePage here */}
+              </ERPLayout>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
