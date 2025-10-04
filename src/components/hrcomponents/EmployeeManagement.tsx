@@ -17,7 +17,9 @@ const EmployeeManagement = () => {
   const [employeeToEdit, setEmployeeToEdit] = useState<any | null>(null)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [employeeToDelete, setEmployeeToDelete] = useState<any | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
+  // Fetch employee and department data
   useEffect(() => {
     const fetchData = async () => {
       const { data: employeeData, error: employeeError } = await supabase.from("employees").select("*")
@@ -37,17 +39,20 @@ const EmployeeManagement = () => {
     fetchData()
   }, [])
 
+  // Save new employee
   const handleSaveEmployee = (newEmployee: any) => {
     setEmployees((prevEmployees) => [...prevEmployees, newEmployee])
     setIsModalOpen(false)
   }
 
+  // Edit existing employee
   const handleEditEmployee = (updatedEmployee: any) => {
     setEmployees((prevEmployees) => prevEmployees.map((emp) => (emp.id === updatedEmployee.id ? updatedEmployee : emp)))
     setIsEditModalOpen(false)
     setEmployeeToEdit(null)
   }
 
+  // Delete an employee
   const handleDeleteEmployee = async () => {
     if (employeeToDelete) {
       const { error } = await supabase.from("employees").delete().eq("id", employeeToDelete.id)
@@ -61,6 +66,15 @@ const EmployeeManagement = () => {
       }
     }
   }
+
+  // Filtered employees based on search query
+  const filteredEmployees = employees.filter((employee) => {
+    const fullName = `${employee.first_name} ${employee.last_name}`.toLowerCase()
+    const departmentName = departments.find((dept) => dept.id === employee.department_id)?.name?.toLowerCase() || ""
+    const query = searchQuery.toLowerCase()
+
+    return fullName.includes(query) || departmentName.includes(query)
+  })
 
   return (
     <div className="space-y-6">
@@ -79,6 +93,17 @@ const EmployeeManagement = () => {
         </div>
       </div>
 
+      {/* Search Bar */}
+      <div className="mb-4 flex items-center space-x-2">
+  <input
+    type="text"
+    className="input input-bordered w-64 sm:w-80 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-2 focus:ring-primary transition"
+    placeholder="Search by name or department"
+    value={searchQuery}
+    onChange={(e) => setSearchQuery(e.target.value)}
+  />
+</div>
+
       <Card className="border-none p-0">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -89,11 +114,14 @@ const EmployeeManagement = () => {
                   <TableCell>Name</TableCell>
                   <TableCell>Department</TableCell>
                   <TableCell>Position</TableCell>
+                  <TableCell>Phone Number</TableCell>
+                  <TableCell>Base Salary</TableCell>
+                  <TableCell>Hire Date</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {employees.map((employee) => (
+                {filteredEmployees.map((employee) => (
                   <TableRow key={employee.id}>
                     <TableCell>{employee.id}</TableCell>
                     <TableCell>{`${employee.first_name} ${employee.last_name}`}</TableCell>
@@ -101,6 +129,9 @@ const EmployeeManagement = () => {
                       {departments.find((dept) => dept.id === employee.department_id)?.name || "N/A"}
                     </TableCell>
                     <TableCell>{employee.position}</TableCell>
+                    <TableCell>{employee.phone_number || "N/A"}</TableCell>
+                    <TableCell>{employee.base_salary ? `$${employee.base_salary}` : "N/A"}</TableCell>
+                    <TableCell>{employee.hire_date || "N/A"}</TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"

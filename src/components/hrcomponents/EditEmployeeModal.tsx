@@ -29,6 +29,48 @@ const TextInput: React.FC<{
   </div>
 )
 
+const NumberInput: React.FC<{
+  id: string
+  label: string
+  placeholder: string
+  value: string
+  onChange: (value: string) => void
+}> = ({ id, label, placeholder, value, onChange }) => (
+  <div>
+    <label htmlFor={id} className="block text-sm font-semibold">
+      {label}
+    </label>
+    <input
+      id={id}
+      type="number"
+      placeholder={placeholder}
+      className="input input-bordered w-full"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  </div>
+)
+
+const DateInput: React.FC<{
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+}> = ({ id, label, value, onChange }) => (
+  <div>
+    <label htmlFor={id} className="block text-sm font-semibold">
+      {label}
+    </label>
+    <input
+      id={id}
+      type="date"
+      className="input input-bordered w-full"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  </div>
+)
+
 interface EditEmployeeModalProps {
   isOpen: boolean
   onClose: () => void
@@ -42,6 +84,9 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
   const [middleInitial, setMiddleInitial] = useState(employee.middle_initial)
   const [departmentId, setDepartmentId] = useState(employee.department_id)
   const [position, setPosition] = useState(employee.position)
+  const [phoneNumber, setPhoneNumber] = useState(employee.phone_number || "")
+  const [baseSalary, setBaseSalary] = useState(employee.base_salary?.toString() || "")
+  const [hireDate, setHireDate] = useState(employee.hire_date || "")
   const [departments, setDepartments] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -73,6 +118,9 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
           middle_initial: middleInitial,
           department_id: departmentId,
           position,
+          phone_number: phoneNumber,
+          base_salary: parseFloat(baseSalary),
+          hire_date: hireDate,
         })
         .eq("id", employee.id)
         .select()
@@ -127,6 +175,26 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
             placeholder="Enter Position"
             value={position}
             onChange={setPosition}
+          />
+          <TextInput
+            id="phoneNumber"
+            label="Phone Number"
+            placeholder="Enter Phone Number"
+            value={phoneNumber}
+            onChange={setPhoneNumber}
+          />
+          <NumberInput
+            id="baseSalary"
+            label="Base Salary"
+            placeholder="Enter Base Salary"
+            value={baseSalary}
+            onChange={setBaseSalary}
+          />
+          <DateInput
+            id="hireDate"
+            label="Hire Date"
+            value={hireDate}
+            onChange={setHireDate}
           />
           <div>
             <label htmlFor="department" className="block text-sm font-semibold">

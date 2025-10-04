@@ -22,8 +22,9 @@ export default function HumanResourcePage() {
           <TabsList>
             <TabsTrigger value="department-management">Department Management</TabsTrigger>
             <TabsTrigger value="employee-management">Employee Management</TabsTrigger>
-            <TabsTrigger value="payroll">Payroll</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="payroll">Payroll</TabsTrigger>
+        
           </TabsList>
 
           <TabsContent value="department-management">
@@ -34,13 +35,16 @@ export default function HumanResourcePage() {
             <EmployeeManagement />
           </TabsContent>
 
-          <TabsContent value="payroll">
-            <Payroll />
-          </TabsContent>
 
           <TabsContent value="attendance">
             <Attendance />
           </TabsContent>
+
+          <TabsContent value="payroll">
+            <Payroll />
+          </TabsContent>
+
+    
         </Tabs>
       </div>
     </ERPLayout>
