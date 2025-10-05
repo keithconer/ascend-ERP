@@ -27,6 +27,7 @@ export default function Payroll() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [payrollData, setPayrollData] = useState<PayrollEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
   // Constants for deductions
@@ -135,10 +136,35 @@ export default function Payroll() {
     }
   };
 
+  // Handle search term change
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  };
+
+  // Filter payrollData based on search term
+  const filteredPayrollData = payrollData.filter((emp) => {
+    const fullName = `${emp.first_name} ${emp.last_name}`.toLowerCase();
+    return (
+      fullName.includes(searchTerm.toLowerCase()) ||
+      emp.employee_type.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
+
   return (
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Payroll</h2>
       <p className="mb-6">Manage and view employee payroll details with a detailed breakdown.</p>
+
+      {/* Search Bar */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search by name or employee type"
+          className="border border-gray-300 p-2 w-full"
+          value={searchTerm}
+          onChange={handleSearchChange}
+        />
+      </div>
 
       {loading && <p>Loading...</p>}
 
@@ -156,14 +182,14 @@ export default function Payroll() {
           </tr>
         </thead>
         <tbody>
-          {payrollData.length === 0 && (
+          {filteredPayrollData.length === 0 && (
             <tr>
               <td colSpan={8} className="border border-gray-300 px-4 py-2 text-center">
                 No employees found.
               </td>
             </tr>
           )}
-          {payrollData.map((emp) => (
+          {filteredPayrollData.map((emp) => (
             <tr key={emp.id}>
               <td className="border border-gray-300 px-4 py-2">
                 {emp.first_name} {emp.last_name}
