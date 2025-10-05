@@ -29,28 +29,6 @@ const TextInput: React.FC<{
   </div>
 )
 
-const NumberInput: React.FC<{
-  id: string
-  label: string
-  placeholder: string
-  value: string
-  onChange: (value: string) => void
-}> = ({ id, label, placeholder, value, onChange }) => (
-  <div>
-    <label htmlFor={id} className="block text-sm font-semibold">
-      {label}
-    </label>
-    <input
-      id={id}
-      type="number"
-      placeholder={placeholder}
-      className="input input-bordered w-full"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  </div>
-)
-
 const DateInput: React.FC<{
   id: string
   label: string
@@ -85,8 +63,10 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
   const [departmentId, setDepartmentId] = useState(employee.department_id)
   const [position, setPosition] = useState(employee.position)
   const [phoneNumber, setPhoneNumber] = useState(employee.phone_number || "")
-  const [baseSalary, setBaseSalary] = useState(employee.base_salary?.toString() || "")
   const [hireDate, setHireDate] = useState(employee.hire_date || "")
+  const [employeeType, setEmployeeType] = useState(employee.employee_type || "")
+  const [ratePerDay, setRatePerDay] = useState(employee.rate_per_day?.toString() || "")
+  const [workDaysPerWeek, setWorkDaysPerWeek] = useState(employee.work_days_per_week?.toString() || "")
   const [departments, setDepartments] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -109,6 +89,9 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
 
     setLoading(true)
 
+    // Normalize the employee type before saving
+    const normalizedEmployeeType = employeeType === "full-time" ? "Full-time" : "Part-time"
+
     try {
       const { data, error } = await supabase
         .from("employees")
@@ -119,8 +102,10 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
           department_id: departmentId,
           position,
           phone_number: phoneNumber,
-          base_salary: parseFloat(baseSalary),
           hire_date: hireDate,
+          employee_type: normalizedEmployeeType, // Save the normalized value
+          rate_per_day: ratePerDay ? Number.parseFloat(ratePerDay) : null,
+          work_days_per_week: workDaysPerWeek ? Number.parseInt(workDaysPerWeek) : null,
         })
         .eq("id", employee.id)
         .select()
@@ -143,7 +128,7 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg p-6 bg-white shadow-lg rounded-lg">
+      <DialogContent className="max-w-lg p-6 bg-white shadow-lg rounded-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Employee</DialogTitle>
         </DialogHeader>
@@ -183,19 +168,7 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
             value={phoneNumber}
             onChange={setPhoneNumber}
           />
-          <NumberInput
-            id="baseSalary"
-            label="Base Salary"
-            placeholder="Enter Base Salary"
-            value={baseSalary}
-            onChange={setBaseSalary}
-          />
-          <DateInput
-            id="hireDate"
-            label="Hire Date"
-            value={hireDate}
-            onChange={setHireDate}
-          />
+          <DateInput id="hireDate" label="Hire Date" value={hireDate} onChange={setHireDate} />
           <div>
             <label htmlFor="department" className="block text-sm font-semibold">
               Department
@@ -213,6 +186,34 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <label htmlFor="employeeType" className="block text-sm font-semibold">
+              Employee Type
+            </label>
+            <Select value={employeeType} onValueChange={(value) => setEmployeeType(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select Employee Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full-time">Full-Time</SelectItem>
+                <SelectItem value="part-time">Part-Time</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <TextInput
+            id="ratePerDay"
+            label="Rate Per Day"
+            placeholder="Enter Rate Per Day"
+            value={ratePerDay}
+            onChange={setRatePerDay}
+          />
+          <TextInput
+            id="workDaysPerWeek"
+            label="Work Days Per Week"
+            placeholder="Enter Work Days Per Week"
+            value={workDaysPerWeek}
+            onChange={setWorkDaysPerWeek}
+          />
         </div>
 
         <DialogFooter>

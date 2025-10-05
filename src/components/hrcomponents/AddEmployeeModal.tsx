@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog"
 import { supabase } from "@/integrations/supabase/client"
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectContent } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
 
 const TextInput: React.FC<{
   id: string
@@ -49,23 +50,27 @@ const DateInput: React.FC<{
   </div>
 )
 
-const AddEmployeeModal: React.FC<{
+interface AddEmployeeModalProps {
   isOpen: boolean
   onClose: () => void
   onSave: (newEmployee: any) => void
-}> = ({ isOpen, onClose, onSave }) => {
+}
+
+const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, onSave }) => {
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [middleInitial, setMiddleInitial] = useState("")
+  const [departmentId, setDepartmentId] = useState("")
   const [position, setPosition] = useState("")
   const [phoneNumber, setPhoneNumber] = useState("")
-  const [baseSalary, setBaseSalary] = useState("")
   const [hireDate, setHireDate] = useState("")
-  const [departmentId, setDepartmentId] = useState("")
+  const [employeeType, setEmployeeType] = useState("")
+  const [ratePerDay, setRatePerDay] = useState("")
+  const [workDaysPerWeek, setWorkDaysPerWeek] = useState("")
   const [departments, setDepartments] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const { toast } = useToast()
 
-  // Fetch departments on mount
   useEffect(() => {
     const fetchDepartments = async () => {
       const { data, error } = await supabase.from("departments").select("*")
@@ -79,50 +84,91 @@ const AddEmployeeModal: React.FC<{
   }, [])
 
   const handleSave = async () => {
-    if (!firstName || !lastName || !middleInitial || !departmentId || !position || !phoneNumber || !baseSalary || !hireDate) {
+    if (
+      !firstName ||
+      !lastName ||
+      !middleInitial ||
+      !departmentId ||
+      !position ||
+      !phoneNumber ||
+      !hireDate ||
+      !employeeType ||
+      !ratePerDay ||
+      !workDaysPerWeek
+    ) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
       return
     }
-
+  
+    // Ensure employeeType is in the correct case
+    const normalizedEmployeeType = employeeType === "full-time" ? "Full-time" : "Part-time";
+  
     setLoading(true)
-
+    console.log("[v0] Starting employee insert...")
+  
     try {
-      const { data, error } = await supabase
-        .from("employees")
-        .insert({
-          first_name: firstName,
-          last_name: lastName,
-          middle_initial: middleInitial,
-          department_id: departmentId,
-          position,
-          phone_number: phoneNumber,
-          base_salary: parseFloat(baseSalary),
-          hire_date: hireDate,
-        })
-        .select()
-        .single()
-
+      const employeeData = {
+        first_name: firstName,
+        last_name: lastName,
+        middle_initial: middleInitial,
+        department_id: String(departmentId),
+        position,
+        phone_number: phoneNumber,
+        hire_date: hireDate,
+        employee_type: normalizedEmployeeType, // Ensure the correct value is passed
+        rate_per_day: Number.parseFloat(ratePerDay),
+        work_days_per_week: Number.parseInt(workDaysPerWeek),
+      }
+  
+      console.log("[v0] Employee data to insert:", employeeData)
+  
+      const { data, error } = await supabase.from("employees").insert(employeeData).select().single()
+  
+      console.log("[v0] Insert response - data:", data, "error:", error)
+  
       if (error) {
-        console.error("Error adding employee:", error)
+        console.error("[v0] Error adding employee:", error)
+        toast({
+          title: "Error",
+          description: `Failed to add employee: ${error.message}`,
+          variant: "destructive",
+        })
         setLoading(false)
         return
       }
-
-      // Pass the database response
+  
+      console.log("[v0] Employee added successfully:", data)
+  
+      toast({
+        title: "Success",
+        description: "Employee added successfully",
+      })
+  
       onSave(data)
-
-      // Reset form
+  
       setFirstName("")
       setLastName("")
       setMiddleInitial("")
+      setDepartmentId("")
       setPosition("")
       setPhoneNumber("")
-      setBaseSalary("")
       setHireDate("")
-      setDepartmentId("")
-
+      setEmployeeType("")
+      setRatePerDay("")
+      setWorkDaysPerWeek("")
+  
       onClose()
     } catch (err) {
-      console.error("Unexpected error:", err)
+      console.error("[v0] Unexpected error:", err)
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -130,7 +176,7 @@ const AddEmployeeModal: React.FC<{
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg p-6 bg-white shadow-lg rounded-lg">
+      <DialogContent className="max-w-lg p-6 bg-white shadow-lg rounded-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Employee</DialogTitle>
         </DialogHeader>
@@ -170,19 +216,7 @@ const AddEmployeeModal: React.FC<{
             value={phoneNumber}
             onChange={setPhoneNumber}
           />
-          <TextInput
-            id="baseSalary"
-            label="Base Salary"
-            placeholder="Enter Base Salary"
-            value={baseSalary}
-            onChange={setBaseSalary}
-          />
-          <DateInput
-            id="hireDate"
-            label="Hire Date"
-            value={hireDate}
-            onChange={setHireDate}
-          />
+          <DateInput id="hireDate" label="Hire Date" value={hireDate} onChange={setHireDate} />
           <div>
             <label htmlFor="department" className="block text-sm font-semibold">
               Department
@@ -200,12 +234,52 @@ const AddEmployeeModal: React.FC<{
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <label htmlFor="employeeType" className="block text-sm font-semibold">
+              Employee Type
+            </label>
+            <Select value={employeeType} onValueChange={(value) => setEmployeeType(value)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select Employee Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full-time">Full-Time</SelectItem>
+                <SelectItem value="part-time">Part-Time</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <TextInput
+            id="ratePerDay"
+            label="Rate Per Day"
+            placeholder="Enter Rate Per Day"
+            value={ratePerDay}
+            onChange={setRatePerDay}
+          />
+          <TextInput
+            id="workDaysPerWeek"
+            label="Work Days Per Week"
+            placeholder="Enter Work Days Per Week"
+            value={workDaysPerWeek}
+            onChange={setWorkDaysPerWeek}
+          />
         </div>
 
         <DialogFooter>
           <Button
             onClick={handleSave}
-            disabled={loading || !firstName || !lastName || !middleInitial || !departmentId || !position || !phoneNumber || !baseSalary || !hireDate}
+            disabled={
+              loading ||
+              !firstName ||
+              !lastName ||
+              !middleInitial ||
+              !departmentId ||
+              !position ||
+              !phoneNumber ||
+              !hireDate ||
+              !employeeType ||
+              !ratePerDay ||
+              !workDaysPerWeek
+            }
             className="bg-primary text-white hover:bg-primary-dark text-xs py-1 px-4"
           >
             {loading ? "Adding..." : "Add Employee"}
