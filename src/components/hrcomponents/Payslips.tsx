@@ -60,10 +60,10 @@ export default function Reports() {
     fetchPayroll();
   }, [toast]);
 
-  // Update status of payroll
+  // Update status of payroll in the database and on the UI
   const updateStatus = async (id: number) => {
     try {
-      // Update the status to "Released"
+      // Update the status to "Released" in the database
       const { error } = await supabase
         .from("payroll")
         .update({ status: "Released" })
@@ -73,12 +73,14 @@ export default function Reports() {
         toast({ title: "Error updating status", description: error.message });
       } else {
         toast({ title: "Status updated", description: "Payslip marked as released" });
+
         // Update the status locally after successful update
         setPayrollRecords((prevState) =>
           prevState.map((payroll) =>
             payroll.id === id ? { ...payroll, status: "Released" } : payroll
           )
         );
+
         // Filter the updated payroll status in the filtered records too
         setFilteredRecords((prevState) =>
           prevState.map((payroll) =>
@@ -88,6 +90,36 @@ export default function Reports() {
       }
     } catch (error) {
       toast({ title: "Error updating status", description: error.message });
+    }
+  };
+
+  // Handle delete payroll record
+  const handleDelete = async (id: number) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this record?");
+    if (confirmDelete) {
+      try {
+        // Delete the payroll record from the database
+        const { error } = await supabase
+          .from("payroll")
+          .delete()
+          .eq("id", id);
+
+        if (error) {
+          toast({ title: "Error deleting payroll", description: error.message });
+        } else {
+          toast({ title: "Payroll deleted", description: "The payroll record has been deleted." });
+
+          // Remove the deleted record from the UI
+          setPayrollRecords((prevState) =>
+            prevState.filter((payroll) => payroll.id !== id)
+          );
+          setFilteredRecords((prevState) =>
+            prevState.filter((payroll) => payroll.id !== id)
+          );
+        }
+      } catch (error) {
+        toast({ title: "Error deleting payroll", description: error.message });
+      }
     }
   };
 
@@ -132,12 +164,13 @@ export default function Reports() {
             <th className="border border-gray-300 px-4 py-2">Deductions</th>
             <th className="border border-gray-300 px-4 py-2">Status</th> {/* Added Status column */}
             <th className="border border-gray-300 px-4 py-2">Date Created</th>
+            <th className="border border-gray-300 px-4 py-2">Actions</th> {/* Added Actions column */}
           </tr>
         </thead>
         <tbody>
           {filteredRecords.length === 0 && (
             <tr>
-              <td colSpan={6} className="border border-gray-300 px-4 py-2 text-center">
+              <td colSpan={7} className="border border-gray-300 px-4 py-2 text-center">
                 No payroll records found.
               </td>
             </tr>
@@ -168,6 +201,16 @@ export default function Reports() {
 
               <td className="border border-gray-300 px-4 py-2 text-center">
                 {new Date(payroll.created_at).toLocaleDateString()}  {/* Format date */}
+              </td>
+
+              {/* Actions Column with Delete Button */}
+              <td className="border border-gray-300 px-4 py-2 text-center">
+                <button
+                  className="bg-red-500 text-white px-4 py-2 rounded"
+                  onClick={() => handleDelete(payroll.id)}
+                >
+                  Delete
+                </button>
               </td>
             </tr>
           ))}
