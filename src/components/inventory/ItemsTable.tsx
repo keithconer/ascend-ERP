@@ -27,6 +27,12 @@ import {
 } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 
+// Helper function to format Peso
+const formatPeso = (value: number | string) => {
+  if (typeof value === 'string') value = parseFloat(value);
+  return `₱${value.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+};
+
 export const ItemsTable = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -37,8 +43,8 @@ export const ItemsTable = () => {
   const [editItem, setEditItem] = useState<any>(null);
   const [editName, setEditName] = useState('');
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
-  const [editUnitPrice, setEditUnitPrice] = useState<number | ''>('');
-  const [editAvailableQuantity, setEditAvailableQuantity] = useState<number | ''>('');
+  const [editUnitPrice, setEditUnitPrice] = useState<number | ''>(''); 
+  const [editAvailableQuantity, setEditAvailableQuantity] = useState<number | ''>(''); 
 
   // Debounce search term to prevent character-by-character fetch
   useEffect(() => {
@@ -46,6 +52,7 @@ export const ItemsTable = () => {
     return () => clearTimeout(delay);
   }, [searchTerm]);
 
+  // Fetch categories
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
@@ -58,6 +65,7 @@ export const ItemsTable = () => {
     },
   });
 
+  // Fetch items with search filter
   const { data: items, isLoading } = useQuery({
     queryKey: ['items', debouncedSearch],
     queryFn: async () => {
@@ -87,6 +95,7 @@ export const ItemsTable = () => {
     },
   });
 
+  // Handle item deletion
   const handleDeleteItem = async (itemId: string, itemName: string) => {
     if (!confirm(`Are you sure you want to permanently delete "${itemName}"? This action cannot be undone.`)) return;
 
@@ -124,12 +133,15 @@ export const ItemsTable = () => {
     }
   };
 
+  // Get total quantity from inventory
   const getTotalQuantity = (inventory: any[]) =>
     inventory?.reduce((sum, r) => sum + (r.quantity || 0), 0) || 0;
 
+  // Get available quantity from inventory
   const getAvailableQuantity = (inventory: any[]) =>
     inventory?.reduce((sum, r) => sum + (r.available_quantity || 0), 0) || 0;
 
+  // Get stock status based on inventory levels
   const getStockStatus = (item: any) => {
     const total = getTotalQuantity(item.inventory);
     if (total === 0) return { status: 'Out of Stock', variant: 'destructive' };
@@ -138,6 +150,7 @@ export const ItemsTable = () => {
     return { status: 'In Stock', variant: 'default' };
   };
 
+  // Open the edit modal
   const openEditModal = (item: any) => {
     setEditItem(item);
     setEditName(item.name || '');
@@ -147,12 +160,14 @@ export const ItemsTable = () => {
     setIsEditOpen(true);
   };
 
+  // Close the edit modal
   const closeEditModal = () => {
     setIsEditOpen(false);
     setEditItem(null);
     setEditAvailableQuantity('');
   };
 
+  // Save the edited item
   const handleSaveEdit = async () => {
     if (!editName.trim()) {
       toast({ title: 'Validation Error', description: 'Name cannot be empty.', variant: 'destructive' });
@@ -251,7 +266,7 @@ export const ItemsTable = () => {
                         </div>
                       </TableCell>
                       <TableCell>{item.categories?.name || 'Uncategorized'}</TableCell>
-                      <TableCell>${item.unit_price?.toFixed(2) || '0.00'}</TableCell>
+                      <TableCell>{formatPeso(item.unit_price)}</TableCell>
                       <TableCell>
                         {getTotalQuantity(item.inventory)} {item.unit_of_measure}
                       </TableCell>
@@ -291,6 +306,7 @@ export const ItemsTable = () => {
         </CardContent>
       </Card>
 
+      {/* Edit Modal */}
       <Dialog open={isEditOpen} onOpenChange={closeEditModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>

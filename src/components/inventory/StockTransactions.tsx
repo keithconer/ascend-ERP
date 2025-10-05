@@ -38,6 +38,17 @@ const calculateTotalStock = (transactions: any[]) => {
   }, {});
 };
 
+// Assume a fixed USD to PHP conversion rate
+// Ideally, you can fetch the current rate dynamically from an API.
+const USD_TO_PHP = 58; // Example conversion rate (1 USD = 58 PHP)
+
+// Helper function to format currency in Peso (₱)
+const formatCurrency = (value: number | string) => {
+  if (typeof value === 'string') value = parseFloat(value);
+  return `₱${value.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+};
+
+// Main Stock Transactions Component
 export const StockTransactions = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -86,6 +97,7 @@ export const StockTransactions = () => {
     );
   }, [debouncedSearch, transactions]);
 
+  // Get transaction badge based on type
   const getTransactionBadge = (type: string) => {
     switch (type) {
       case 'stock-in':
@@ -155,30 +167,35 @@ export const StockTransactions = () => {
             </TableHeader>
             <TableBody>
               {filteredTransactions.length > 0 ? (
-                filteredTransactions.map((transaction) => (
-                  <TableRow key={transaction.id}>
-                    <TableCell>
-                      {new Date(transaction.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{transaction.items?.name}</p>
-                        <p className="text-sm text-muted-foreground">{transaction.items?.sku}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{transaction.warehouses?.name}</TableCell>
-                    <TableCell>{getTransactionBadge(transaction.transaction_type)}</TableCell>
-                    <TableCell>
-                      {/* Show total stock for the item */}
-                      <span className={transaction.transaction_type === 'stock-out' ? 'text-red-600' : 'text-green-600'}>
-                        {totalStock[transaction.item_id] || 0}
-                      </span>
-                    </TableCell>
-                    <TableCell>{transaction.reference_number || '-'}</TableCell>
-                    <TableCell>${transaction.unit_cost?.toFixed(2) || '-'}</TableCell>
-                    <TableCell>${transaction.total_cost?.toFixed(2) || '-'}</TableCell>
-                  </TableRow>
-                ))
+                filteredTransactions.map((transaction) => {
+                  // Convert unit cost and total cost to Peso
+                  const unitCostInPHP = (transaction.unit_cost || 0) * USD_TO_PHP;
+                  const totalCostInPHP = (transaction.total_cost || 0) * USD_TO_PHP;
+
+                  return (
+                    <TableRow key={transaction.id}>
+                      <TableCell>
+                        {new Date(transaction.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{transaction.items?.name}</p>
+                          <p className="text-sm text-muted-foreground">{transaction.items?.sku}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{transaction.warehouses?.name}</TableCell>
+                      <TableCell>{getTransactionBadge(transaction.transaction_type)}</TableCell>
+                      <TableCell>
+                        <span className={transaction.transaction_type === 'stock-out' ? 'text-red-600' : 'text-green-600'}>
+                          {totalStock[transaction.item_id] || 0}
+                        </span>
+                      </TableCell>
+                      <TableCell>{transaction.reference_number || '-'}</TableCell>
+                      <TableCell>{formatCurrency(unitCostInPHP)}</TableCell> {/* Converted to Peso */}
+                      <TableCell>{formatCurrency(totalCostInPHP)}</TableCell> {/* Converted to Peso */}
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-8">

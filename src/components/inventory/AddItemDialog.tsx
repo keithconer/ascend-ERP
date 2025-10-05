@@ -239,7 +239,7 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="unit_price">Unit Price ($)</Label>
+              <Label htmlFor="unit_price">Unit Price (₱)</Label>
               <Input
                 id="unit_price"
                 type="number"
@@ -247,7 +247,7 @@ export const AddItemDialog = ({ open, onOpenChange }: AddItemDialogProps) => {
                 min="0"
                 value={formData.unit_price}
                 onChange={(e) => setFormData({ ...formData, unit_price: e.target.value })}
-                placeholder="0.00"
+                placeholder="₱0.00"
               />
             </div>
           </div>

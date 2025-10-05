@@ -13,6 +13,16 @@ import { InventoryAlerts } from '@/components/inventory/InventoryAlerts';
 import { AddItemDialog } from '@/components/inventory/AddItemDialog';
 import { InventorySummary } from '@/components/inventory/InventorySummary';
 
+// Conversion rate from USD to PHP, assuming 1 USD = 58 PHP (this can be updated dynamically)
+const USD_TO_PHP = 58;
+
+// Helper function to format currency in Peso (₱)
+const formatCurrency = (value: number | string) => {
+  if (typeof value === 'string') value = parseFloat(value);
+  return `₱${value.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+};
+
+// Main Component
 export default function InventoryManagement() {
   const [showAddItem, setShowAddItem] = useState(false);
 
@@ -42,10 +52,13 @@ export default function InventoryManagement() {
         return sum + (item.quantity * (item.items?.unit_price || 0));
       }, 0) || 0;
 
+      // Convert total inventory value from USD to PHP
+      const totalInventoryValueInPHP = totalInventoryValue * USD_TO_PHP;
+
       return {
         lowStock: lowStockCount.count || 0,
         outOfStock: outOfStockCount.count || 0,
-        totalValue: totalInventoryValue,
+        totalValue: totalInventoryValueInPHP, // Returning value in Peso
       };
     },
   });
@@ -91,7 +104,7 @@ export default function InventoryManagement() {
               <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${inventoryStats?.totalValue?.toFixed(2) || '0.00'}</div>
+              <div className="text-2xl font-bold">{formatCurrency(inventoryStats?.totalValue || 0)}</div>
               <p className="text-xs text-muted-foreground">Based on unit prices</p>
             </CardContent>
           </Card>
@@ -104,7 +117,7 @@ export default function InventoryManagement() {
             <TabsTrigger value="transactions">Stock Transactions</TabsTrigger>
             <TabsTrigger value="warehouses">Warehouses</TabsTrigger>
             <TabsTrigger value="alerts">Alerts & Reports</TabsTrigger>
-             <TabsTrigger value="inventorysummary">Inventory Summary</TabsTrigger>
+            <TabsTrigger value="inventorysummary">Inventory Summary</TabsTrigger>
           </TabsList>
 
           <TabsContent value="items">
@@ -123,7 +136,7 @@ export default function InventoryManagement() {
             <InventoryAlerts />
           </TabsContent>
 
-             <TabsContent value="inventorysummary">
+          <TabsContent value="inventorysummary">
             <InventorySummary />
           </TabsContent>
         </Tabs>
