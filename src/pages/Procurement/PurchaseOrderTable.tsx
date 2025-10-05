@@ -64,18 +64,13 @@ export default function PurchaseOrderTable() {
         order_date,
         status,
         notes,
-        supplier_id,
-        suppliers (
-          name
-        ),
+        total,
+        suppliers: supplier_id (name),
         purchase_order_items (
           quantity,
           price,
           item_id,
-          items (
-            name,
-            unit_price
-          )
+          items: items (name, unit_price)
         )
       `)
       .order("order_date", { ascending: false });
@@ -95,10 +90,16 @@ export default function PurchaseOrderTable() {
           price: i.items?.unit_price ?? i.price ?? 0,
         }));
 
-        const total = items.reduce(
+        // Calculate the total based on price * quantity for each item
+        const calculatedTotal = items.reduce(
           (acc: number, i: Item) => acc + i.price * i.quantity,
           0
         );
+
+        // Update the total in the database if it differs from the calculated total
+        if (po.total !== calculatedTotal) {
+          updatePurchaseOrderTotal(po.id, calculatedTotal);
+        }
 
         return {
           id: po.id,
@@ -109,7 +110,7 @@ export default function PurchaseOrderTable() {
           status: po.status,
           notes: po.notes,
           items,
-          total,
+          total: calculatedTotal,
         };
       });
 
@@ -117,6 +118,21 @@ export default function PurchaseOrderTable() {
     }
 
     setLoading(false);
+  }
+
+  async function updatePurchaseOrderTotal(poId: string, total: number) {
+    const { error } = await supabase
+      .from("purchase_orders")
+      .update({ total })
+      .eq("id", poId);
+
+    if (error) {
+      toast({
+        title: "Error updating purchase order total",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   }
 
   function openViewModal(po: PurchaseOrder) {

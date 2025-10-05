@@ -12,7 +12,7 @@ const AccountsPayable = () => {
       setLoading(true);
       console.log('Fetching accounts payable data...');
 
-      // Fetch initial pending Purchase Orders (POs)
+      // Fetch initial pending Purchase Orders (POs) with their total
       const { data: poData, error: poError } = await supabase
         .from('purchase_orders')
         .select(`
@@ -22,7 +22,7 @@ const AccountsPayable = () => {
           status,
           suppliers(name),
           order_date,
-          purchase_order_items(quantity, price, item_id)
+          total
         `)
         .eq('status', 'pending');  // Only pending POs
 
@@ -57,15 +57,11 @@ const AccountsPayable = () => {
       poData?.forEach(po => {
         const invoiceId = `PO-${po.id}`;
 
-        const totalAmount = po.purchase_order_items.reduce((acc: number, item: any) => {
-          return acc + (item.quantity * item.price);  // Calculate total price for PO
-        }, 0);
-
         initialData.push({
           invoice_id: invoiceId,
           supplier_name: po.suppliers?.name ?? 'Unknown Supplier',
           po_number: po.po_number,
-          amount: totalAmount,
+          amount: po.total,  // Use the total from the purchase_orders table
           status: po.status,
           employee_name: null,
         });
@@ -97,18 +93,13 @@ const AccountsPayable = () => {
           if (payload.new.status === 'pending') {
             const po = payload.new;
 
-            // Calculate total for new PO
-            const totalAmount = po.purchase_order_items.reduce((acc: number, item: any) => {
-              return acc + (item.quantity * item.price);
-            }, 0);
-
             setPayableData(prevData => [
               ...prevData,
               {
                 invoice_id: `PO-${po.id}`,
                 supplier_name: po.suppliers?.name ?? 'Unknown Supplier',
                 po_number: po.po_number,
-                amount: totalAmount,
+                amount: po.total,  // Use the total from the new PO
                 status: po.status,
                 employee_name: null,
               }
