@@ -7,6 +7,7 @@ import EmployeeManagement from '@/components/hrcomponents/EmployeeManagement';
 import Payroll from '@/components/hrcomponents/Payroll';
 import Attendance from '@/components/hrcomponents/Attendance';
 import DepartmentManagement from '@/components/hrcomponents/DepartmentManagement';
+import Reports from '@/components/hrcomponents/Payslips';
 
 export default function HumanResourcePage() {
   return (
@@ -24,6 +25,7 @@ export default function HumanResourcePage() {
             <TabsTrigger value="employee-management">Employee Management</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
+            <TabsTrigger value="reports">Reports</TabsTrigger>
         
           </TabsList>
 
@@ -42,6 +44,11 @@ export default function HumanResourcePage() {
 
           <TabsContent value="payroll">
             <Payroll />
+          </TabsContent>
+
+
+          <TabsContent value="reports">
+            <Reports />
           </TabsContent>
 
     
