@@ -21,6 +21,7 @@ const EmployeeManagement = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      // Fetching employee data
       const { data: employeeData, error: employeeError } = await supabase.from("employees").select("*")
       if (employeeError) {
         console.error("Error fetching employees:", employeeError)
@@ -28,6 +29,7 @@ const EmployeeManagement = () => {
         setEmployees(employeeData || [])
       }
 
+      // Fetching department data
       const { data: departmentData, error: departmentError } = await supabase.from("departments").select("*")
       if (departmentError) {
         console.error("Error fetching departments:", departmentError)
@@ -127,7 +129,11 @@ const EmployeeManagement = () => {
                     <TableCell>{employee.position}</TableCell>
                     <TableCell>{employee.phone_number || "N/A"}</TableCell>
                     <TableCell>{employee.employee_type || "N/A"}</TableCell>
-                    <TableCell>{employee.rate_per_day ? `$${employee.rate_per_day}` : "N/A"}</TableCell>
+                    <TableCell>
+                      {employee.rate_per_day
+                        ? `₱${employee.rate_per_day.toLocaleString()}` // Format as Pesos
+                        : "N/A"}
+                    </TableCell>
                     <TableCell>{employee.work_days_per_week || "N/A"}</TableCell>
                     <TableCell>{employee.hire_date || "N/A"}</TableCell>
                     <TableCell>

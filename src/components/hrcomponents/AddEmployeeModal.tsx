@@ -104,12 +104,15 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
       return
     }
   
-    // Ensure employeeType is in the correct case
+    // Normalize employee type
     const normalizedEmployeeType = employeeType === "full-time" ? "Full-time" : "Part-time";
   
     setLoading(true)
     console.log("[v0] Starting employee insert...")
-  
+
+    // Remove non-numeric characters from Rate Per Day and convert to a number
+    const parsedRatePerDay = Number.parseFloat(ratePerDay.replace(/[^0-9.-]+/g, "")) // Removing currency symbol and other non-numeric chars
+
     try {
       const employeeData = {
         first_name: firstName,
@@ -119,8 +122,8 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
         position,
         phone_number: phoneNumber,
         hire_date: hireDate,
-        employee_type: normalizedEmployeeType, // Ensure the correct value is passed
-        rate_per_day: Number.parseFloat(ratePerDay),
+        employee_type: normalizedEmployeeType,
+        rate_per_day: parsedRatePerDay,
         work_days_per_week: Number.parseInt(workDaysPerWeek),
       }
   
@@ -250,8 +253,8 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
           </div>
           <TextInput
             id="ratePerDay"
-            label="Rate Per Day"
-            placeholder="Enter Rate Per Day"
+            label="Rate Per Day (₱)"
+            placeholder="Enter Rate Per Day in Pesos"
             value={ratePerDay}
             onChange={setRatePerDay}
           />
@@ -280,9 +283,8 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
               !ratePerDay ||
               !workDaysPerWeek
             }
-            className="bg-primary text-white hover:bg-primary-dark text-xs py-1 px-4"
           >
-            {loading ? "Adding..." : "Add Employee"}
+            {loading ? "Saving..." : "Save Employee"}
           </Button>
         </DialogFooter>
       </DialogContent>
