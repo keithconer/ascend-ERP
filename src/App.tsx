@@ -8,7 +8,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import InventoryManagement from "./pages/inventory/InventoryManagement";
 import ProcurementPage from "./pages/Procurement/ProcurementPage";
-import HumanResourcePage from "./pages/humanresources/HumanResourcePage";  // Make sure you import the correct page
+import HumanResourcePage from "./pages/humanresources/HumanResourcePage";  
+import FinanceManagementPage from "./pages/finance/FinanceManagement";
 import NotFound from "./pages/NotFound";
 import { ERPLayout } from "@/components/erp/ERPLayout";
 
@@ -43,6 +44,14 @@ const App = () => (
             element={
               <ERPLayout>
                 <HumanResourcePage />  {/* Render the HumanResourcePage here */}
+              </ERPLayout>
+            }
+          />
+              <Route
+            path="/finance"  // The /hr route should render HumanResourcePage
+            element={
+              <ERPLayout>
+                <FinanceManagementPage />  {/* Render the HumanResourcePage here */}
               </ERPLayout>
             }
           />
