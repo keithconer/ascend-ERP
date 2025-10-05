@@ -26,9 +26,7 @@ const formatPeso = (value: number) => `₱${value.toFixed(2).replace(/\d(?=(\d{3
 export default function Payroll() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [payrollData, setPayrollData] = useState<PayrollEntry[]>([]);
-  const [filteredData, setFilteredData] = useState<PayrollEntry[]>([]); // New state for filtered data
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(""); // New state for search term
   const { toast } = useToast();
 
   // Constants for deductions
@@ -60,7 +58,6 @@ export default function Payroll() {
           },
         }));
         setPayrollData(initialPayroll);
-        setFilteredData(initialPayroll); // Set initial filtered data to all payroll records
       }
       setLoading(false);
     }
@@ -103,21 +100,6 @@ export default function Payroll() {
     );
   };
 
-  // Handle search input change
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value.toLowerCase();
-    setSearchTerm(term);
-
-    // Filter payroll data by employee name or employee type
-    const filtered = payrollData.filter(
-      (emp) =>
-        emp.first_name.toLowerCase().includes(term) ||
-        emp.last_name.toLowerCase().includes(term) ||
-        emp.employee_type.toLowerCase().includes(term)
-    );
-    setFilteredData(filtered); // Set the filtered records
-  };
-
   // Placeholder for managing payroll - save to DB
   const handleManagePayroll = async () => {
     setLoading(true);
@@ -158,17 +140,6 @@ export default function Payroll() {
       <h2 className="text-2xl font-bold mb-4">Payroll</h2>
       <p className="mb-6">Manage and view employee payroll details with a detailed breakdown.</p>
 
-      {/* Search Bar */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search by name or employee type"
-          className="border border-gray-300 p-2 w-full"
-          value={searchTerm}
-          onChange={handleSearch}
-        />
-      </div>
-
       {loading && <p>Loading...</p>}
 
       <table className="min-w-full table-auto border-collapse border border-gray-300 mb-6">
@@ -185,14 +156,14 @@ export default function Payroll() {
           </tr>
         </thead>
         <tbody>
-          {filteredData.length === 0 && (
+          {payrollData.length === 0 && (
             <tr>
               <td colSpan={8} className="border border-gray-300 px-4 py-2 text-center">
-                No payroll records found.
+                No employees found.
               </td>
             </tr>
           )}
-          {filteredData.map((emp) => (
+          {payrollData.map((emp) => (
             <tr key={emp.id}>
               <td className="border border-gray-300 px-4 py-2">
                 {emp.first_name} {emp.last_name}

@@ -29,21 +29,17 @@ export default function FinanceManagementPage() {
             <GeneralLedger />
           </TabsContent>
 
-
-          <TabsContent value="account-payable">
-            <GeneralLedger />
+          <TabsContent value="accounts-payable"> {/* Fixed typo here */}
+            <AccountsPayable />
           </TabsContent>
 
-          <TabsContent value="account-receivable">
-            <GeneralLedger />
+          <TabsContent value="accounts-receivable">
+            <AccountsReceivable />
           </TabsContent>
 
-          <TabsContent value="Financial Reports">
-            <GeneralLedger />
+          <TabsContent value="financialreports">
+            <FinancialReports />
           </TabsContent>
-
-
-
         </Tabs>
       </div>
     </ERPLayout>
