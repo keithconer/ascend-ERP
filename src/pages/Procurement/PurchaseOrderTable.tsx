@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableHeader,
@@ -9,19 +9,13 @@ import {
   TableRow,
   TableHead,
   TableCell,
-} from '@/components/ui/table';
-import { supabase } from '@/integrations/supabase/client';
-import { EyeIcon, Trash2 } from 'lucide-react';
-import { format } from 'date-fns';
-import ViewPurchaseOrderModal from './ViewPurchaseOrderModal';
-import { useToast } from '@/hooks/use-toast';
-import { Input } from '@/components/ui/input';
-
-// Helper function to format Peso
-const formatPeso = (value: number | string) => {
-  if (typeof value === 'string') value = parseFloat(value);
-  return `₱${value.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
-};
+} from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { EyeIcon, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import ViewPurchaseOrderModal from "./ViewPurchaseOrderModal";
+import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 
 interface Item {
   item_name: string;
@@ -47,7 +41,7 @@ export default function PurchaseOrderTable() {
   const [selected, setSelected] = useState<PurchaseOrder | null>(null);
   const [showView, setShowView] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -58,12 +52,11 @@ export default function PurchaseOrderTable() {
     fetchPurchaseOrders();
   }, [searchTerm]);
 
-  // Fetch purchase orders from the database
   async function fetchPurchaseOrders() {
     setLoading(true);
 
     const { data, error } = await supabase
-      .from('purchase_orders')
+      .from("purchase_orders")
       .select(`
         id,
         po_number,
@@ -85,19 +78,19 @@ export default function PurchaseOrderTable() {
           )
         )
       `)
-      .order('order_date', { ascending: false });
+      .order("order_date", { ascending: false });
 
     if (error) {
       toast({
-        title: 'Error loading purchase orders',
+        title: "Error loading purchase orders",
         description: error.message,
-        variant: 'destructive',
+        variant: "destructive",
       });
       setPurchaseOrders([]);
     } else {
       const transformed = (data || []).map((po: any) => {
         const items: Item[] = (po.purchase_order_items || []).map((i: any) => ({
-          item_name: i.items?.name ?? 'Unknown',
+          item_name: i.items?.name ?? "Unknown",
           quantity: i.quantity,
           price: i.items?.unit_price ?? i.price ?? 0,
         }));
@@ -111,7 +104,7 @@ export default function PurchaseOrderTable() {
           id: po.id,
           po_number: po.po_number,
           requisition_id: po.requisition_id,
-          supplier_name: po.suppliers?.name ?? 'Unknown Supplier',
+          supplier_name: po.suppliers?.name ?? "Unknown Supplier",
           order_date: po.order_date,
           status: po.status,
           notes: po.notes,
@@ -133,7 +126,7 @@ export default function PurchaseOrderTable() {
 
   async function handleDelete(poId: string) {
     const confirmed = window.confirm(
-      'Are you sure you want to delete this purchase order, its associated requisition, and receipts? This action cannot be undone.'
+      "Are you sure you want to delete this purchase order, its associated requisition, and receipts? This action cannot be undone."
     );
     if (!confirmed) return;
 
@@ -142,9 +135,9 @@ export default function PurchaseOrderTable() {
     try {
       // Fetch requisition_id from the purchase order
       const { data: poData, error: fetchError } = await supabase
-        .from('purchase_orders')
-        .select('requisition_id')
-        .eq('id', poId)
+        .from("purchase_orders")
+        .select("requisition_id")
+        .eq("id", poId)
         .single();
 
       if (fetchError) throw fetchError;
@@ -153,33 +146,33 @@ export default function PurchaseOrderTable() {
 
       // Delete the purchase order (this also deletes related receipts if ON DELETE CASCADE is used)
       const { error: deletePoError } = await supabase
-        .from('purchase_orders')
+        .from("purchase_orders")
         .delete()
-        .eq('id', poId);
+        .eq("id", poId);
 
       if (deletePoError) throw deletePoError;
 
       // Delete associated requisition, if it exists
       if (requisitionId) {
         const { error: deleteReqError } = await supabase
-          .from('purchase_requisitions')
+          .from("purchase_requisitions")
           .delete()
-          .eq('id', requisitionId);
+          .eq("id", requisitionId);
 
         if (deleteReqError) throw deleteReqError;
       }
 
       toast({
-        title: 'Purchase order and requisition deleted',
-        variant: 'success',
+        title: "Purchase order and requisition deleted",
+        variant: "success",
       });
 
       fetchPurchaseOrders();
     } catch (err: any) {
       toast({
-        title: 'Failed to delete',
-        description: err.message || 'Unknown error',
-        variant: 'destructive',
+        title: "Failed to delete",
+        description: err.message || "Unknown error",
+        variant: "destructive",
       });
     } finally {
       setDeletingId(null);
@@ -225,14 +218,14 @@ export default function PurchaseOrderTable() {
             {purchaseOrders.map((po) => (
               <TableRow key={po.id}>
                 <TableCell>{po.po_number}</TableCell>
-                <TableCell>{po.requisition_id?.slice(0, 8) ?? '-'}</TableCell>
+                <TableCell>{po.requisition_id?.slice(0, 8) ?? "-"}</TableCell>
                 <TableCell>{po.supplier_name}</TableCell>
-                <TableCell>{format(new Date(po.order_date), 'PPP')}</TableCell>
+                <TableCell>{format(new Date(po.order_date), "PPP")}</TableCell>
                 <TableCell>{po.status}</TableCell>
                 <TableCell>
-                  {po.items.map((i) => `${i.item_name} (${i.quantity})`).join(', ')}
+                  {po.items.map((i) => `${i.item_name} (${i.quantity})`).join(", ")}
                 </TableCell>
-                <TableCell>{formatPeso(po.total)}</TableCell>
+                <TableCell>${po.total.toFixed(2)}</TableCell>
                 <TableCell className="flex gap-2">
                   <Button
                     variant="outline"

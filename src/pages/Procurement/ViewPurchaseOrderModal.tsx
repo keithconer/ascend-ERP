@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -34,12 +32,6 @@ interface ViewPurchaseOrderModalProps {
   onUpdated: () => void;
 }
 
-// Helper function to format Peso
-const formatPeso = (value: number | string) => {
-  if (typeof value === "string") value = parseFloat(value);
-  return `₱${value.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,")}`;
-};
-
 export default function ViewPurchaseOrderModal({
   open,
   onClose,
@@ -64,7 +56,6 @@ export default function ViewPurchaseOrderModal({
     }
   }, [open, purchaseOrder]);
 
-  // Fetch purchase order items
   async function fetchItems() {
     const { data, error } = await supabase
       .from("purchase_order_items")
@@ -79,7 +70,6 @@ export default function ViewPurchaseOrderModal({
     }
   }
 
-  // Fetch warehouses
   async function fetchWarehouses() {
     const { data, error } = await supabase
       .from("warehouses")
@@ -97,7 +87,6 @@ export default function ViewPurchaseOrderModal({
     }
   }
 
-  // Handle PO approval
   async function handleApprove() {
     if (!selectedWarehouseId) {
       toast({
@@ -186,13 +175,13 @@ export default function ViewPurchaseOrderModal({
                 const price = it.price !== 0 ? it.price : it.item_id.unit_price ?? 0;
                 return (
                   <li key={it.id}>
-                    {it.item_id.name} — Qty: {it.quantity} @ {formatPeso(price)} each
+                    {it.item_id.name} — Qty: {it.quantity} @ ${price.toFixed(2)} each
                   </li>
                 );
               })}
             </ul>
             {/* Display total here */}
-            <div className="mt-4 font-semibold text-right">Total: {formatPeso(total)}</div>
+            <div className="mt-4 font-semibold text-right">Total: ${total.toFixed(2)}</div>
           </div>
 
           {purchaseOrder.status.toLowerCase().trim() !== "approved" && (

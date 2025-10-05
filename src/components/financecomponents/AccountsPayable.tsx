@@ -1,16 +1,18 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';  // Adjust path as necessary
+import { supabase } from '@/integrations/supabase/client'; // Adjust path as necessary
 
 const AccountsPayable = () => {
   const [payableData, setPayableData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    async function fetchAndInsertAccountsPayable() {
+    async function fetchAccountsPayableData() {
       setLoading(true);
-      console.log('Fetching and inserting accounts payable data...');
+      console.log('Fetching accounts payable data...');
 
-      // Fetch pending Purchase Orders (POs) from 'purchase_orders' table along with PO items
+      // Fetch initial pending Purchase Orders (POs)
       const { data: poData, error: poError } = await supabase
         .from('purchase_orders')
         .select(`
@@ -20,9 +22,9 @@ const AccountsPayable = () => {
           status,
           suppliers(name),
           order_date,
-          purchase_order_items(quantity, price, item_id)  // Get item quantity and price
+          purchase_order_items(quantity, price, item_id)
         `)
-        .eq('status', 'pending');  // Correct 'pending' status (lowercase)
+        .eq('status', 'pending');  // Only pending POs
 
       if (poError) {
         console.error('Error fetching Pending Purchase Orders:', poError.message);
@@ -30,7 +32,7 @@ const AccountsPayable = () => {
         console.log('Fetched Pending POs:', poData);
       }
 
-      // Fetch pending payrolls from 'payroll' table
+      // Fetch initial pending payrolls
       const { data: payrollData, error: payrollError } = await supabase
         .from('payroll')
         .select(`
@@ -38,9 +40,9 @@ const AccountsPayable = () => {
           employee_id,
           status,
           salary,
-          employees(first_name, last_name)  // Joining to get employee names
+          employees(first_name, last_name)
         `)
-        .eq('status', 'Pending');  // Correct 'Pending' status (capitalized)
+        .eq('status', 'Pending');  // Only pending payrolls
 
       if (payrollError) {
         console.error('Error fetching Pending Payrolls:', payrollError.message);
@@ -48,81 +50,104 @@ const AccountsPayable = () => {
         console.log('Fetched Pending Payrolls:', payrollData);
       }
 
-      // Prepare data for insertion into accounts_payable table
-      const dataToInsert = [];
+      // Combine the fetched data and store it
+      const initialData = [];
 
       // Insert POs into the data array
       poData?.forEach(po => {
-        const invoiceId = `PO-${po.id}`;  // Use PO ID for invoice ID to avoid random duplication
+        const invoiceId = `PO-${po.id}`;
 
-        // Calculate total amount for the PO based on item quantities and prices
         const totalAmount = po.purchase_order_items.reduce((acc: number, item: any) => {
-          return acc + (item.quantity * item.price);  // Price * Quantity
+          return acc + (item.quantity * item.price);  // Calculate total price for PO
         }, 0);
 
-        // Check if the PO already exists in accounts_payable
-        const existingPo = payableData.find(item => item.invoice_id === invoiceId);
-        if (!existingPo) {
-          dataToInsert.push({
-            invoice_id: invoiceId,
-            supplier_name: po.suppliers?.name ?? 'Unknown Supplier',
-            po_number: po.po_number,
-            amount: totalAmount,
-            status: po.status,
-            employee_name: null,  // No employee name for POs
-          });
-        }
+        initialData.push({
+          invoice_id: invoiceId,
+          supplier_name: po.suppliers?.name ?? 'Unknown Supplier',
+          po_number: po.po_number,
+          amount: totalAmount,
+          status: po.status,
+          employee_name: null,
+        });
       });
 
       // Insert Payroll data into the data array
       payrollData?.forEach(payroll => {
-        const invoiceId = `PR-${payroll.id}`;  // Use payroll ID for invoice ID to avoid random duplication
+        const invoiceId = `PR-${payroll.id}`;
         const employeeName = `${payroll.employees?.first_name} ${payroll.employees?.last_name}`;
 
-        // Check if the Payroll already exists in accounts_payable
-        const existingPayroll = payableData.find(item => item.invoice_id === invoiceId);
-        if (!existingPayroll) {
-          dataToInsert.push({
-            invoice_id: invoiceId,
-            supplier_name: null,  // No supplier name for Payrolls
-            po_number: null,      // No PO number for Payrolls
-            amount: payroll.salary,
-            status: payroll.status,
-            employee_name: employeeName,
-          });
-        }
+        initialData.push({
+          invoice_id: invoiceId,
+          supplier_name: null,
+          po_number: null,
+          amount: payroll.salary,
+          status: payroll.status,
+          employee_name: employeeName,
+        });
       });
 
-      // Insert the combined data into the 'accounts_payable' table
-      if (dataToInsert.length > 0) {
-        const { error: insertError } = await supabase
-          .from('accounts_payable')
-          .insert(dataToInsert);  // Using insert instead of upsert
-
-        if (insertError) {
-          console.error('Error inserting data into accounts_payable:', insertError.message);
-        } else {
-          console.log('Successfully inserted accounts payable data');
-        }
-      }
-
-      // Fetch the inserted data and update the state
-      const { data: newPayableData, error: fetchError } = await supabase
-        .from('accounts_payable')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (fetchError) {
-        console.error('Error fetching data from accounts_payable:', fetchError.message);
-      } else {
-        setPayableData(newPayableData);
-      }
-
+      // Set initial data
+      setPayableData(initialData);
       setLoading(false);
+
+      // Listen for changes in the purchase_orders table (new pending POs)
+      const purchaseOrdersSubscription = supabase
+        .from('purchase_orders')
+        .on('INSERT', payload => {
+          if (payload.new.status === 'pending') {
+            const po = payload.new;
+
+            // Calculate total for new PO
+            const totalAmount = po.purchase_order_items.reduce((acc: number, item: any) => {
+              return acc + (item.quantity * item.price);
+            }, 0);
+
+            setPayableData(prevData => [
+              ...prevData,
+              {
+                invoice_id: `PO-${po.id}`,
+                supplier_name: po.suppliers?.name ?? 'Unknown Supplier',
+                po_number: po.po_number,
+                amount: totalAmount,
+                status: po.status,
+                employee_name: null,
+              }
+            ]);
+          }
+        })
+        .subscribe();
+
+      // Listen for changes in the payroll table (new pending payrolls)
+      const payrollsSubscription = supabase
+        .from('payroll')
+        .on('INSERT', payload => {
+          if (payload.new.status === 'Pending') {
+            const payroll = payload.new;
+
+            setPayableData(prevData => [
+              ...prevData,
+              {
+                invoice_id: `PR-${payroll.id}`,
+                supplier_name: null,
+                po_number: null,
+                amount: payroll.salary,
+                status: payroll.status,
+                employee_name: `${payroll.employees?.first_name} ${payroll.employees?.last_name}`,
+              }
+            ]);
+          }
+        })
+        .subscribe();
+
+      // Clean up the subscription when the component is unmounted
+      return () => {
+        purchaseOrdersSubscription.unsubscribe();
+        payrollsSubscription.unsubscribe();
+      };
     }
 
-    fetchAndInsertAccountsPayable();
-  }, []);  // Empty dependency array so it runs only once on mount
+    fetchAccountsPayableData();
+  }, []);
 
   return (
     <div className="p-4">
