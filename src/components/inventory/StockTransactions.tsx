@@ -38,10 +38,6 @@ const calculateTotalStock = (transactions: any[]) => {
   }, {});
 };
 
-// Assume a fixed USD to PHP conversion rate
-// Ideally, you can fetch the current rate dynamically from an API.
-const USD_TO_PHP = 58; // Example conversion rate (1 USD = 58 PHP)
-
 // Helper function to format currency in Peso (₱)
 const formatCurrency = (value: number | string) => {
   if (typeof value === 'string') value = parseFloat(value);
@@ -68,8 +64,7 @@ export const StockTransactions = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('stock_transactions')
-        .select(`
-          *,
+        .select(`*,
           items(name, sku),
           warehouses(name)
         `)
@@ -168,9 +163,9 @@ export const StockTransactions = () => {
             <TableBody>
               {filteredTransactions.length > 0 ? (
                 filteredTransactions.map((transaction) => {
-                  // Convert unit cost and total cost to Peso
-                  const unitCostInPHP = (transaction.unit_cost || 0) * USD_TO_PHP;
-                  const totalCostInPHP = (transaction.total_cost || 0) * USD_TO_PHP;
+                  // Assuming the unit cost is already in Peso (₱)
+                  const unitCostInPHP = transaction.unit_cost || 0;
+                  const totalCostInPHP = (transaction.unit_cost || 0) * (transaction.quantity || 0);
 
                   return (
                     <TableRow key={transaction.id}>
@@ -191,8 +186,8 @@ export const StockTransactions = () => {
                         </span>
                       </TableCell>
                       <TableCell>{transaction.reference_number || '-'}</TableCell>
-                      <TableCell>{formatCurrency(unitCostInPHP)}</TableCell> {/* Converted to Peso */}
-                      <TableCell>{formatCurrency(totalCostInPHP)}</TableCell> {/* Converted to Peso */}
+                      <TableCell>{formatCurrency(unitCostInPHP)}</TableCell> {/* Unit cost in Peso */}
+                      <TableCell>{formatCurrency(totalCostInPHP)}</TableCell> {/* Total cost in Peso */}
                     </TableRow>
                   );
                 })

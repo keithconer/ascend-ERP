@@ -34,6 +34,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetching active items for the dropdown
   const { data: items } = useQuery({
     queryKey: ['active-items'],
     queryFn: async () => {
@@ -48,6 +49,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
     },
   });
 
+  // Fetching active warehouses for the dropdown
   const { data: warehouses } = useQuery({
     queryKey: ['active-warehouses'],
     queryFn: async () => {
@@ -62,15 +64,65 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
     },
   });
 
+  // Fetching current stock for the selected item to check for stock-out validity
+  const { data: inventory, error: inventoryError } = useQuery({
+    queryKey: ['inventory', formData.item_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('stock')
+        .eq('item_id', formData.item_id)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!formData.item_id,  // Only run this query if an item is selected
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
+    // Validate the form data
+    const unitCost = parseFloat(formData.unit_cost);
+    const quantity = parseInt(formData.quantity);
+
+    if (isNaN(unitCost) || unitCost <= 0) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a valid unit cost.',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (isNaN(quantity) || quantity <= 0) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a valid quantity.',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Handle stock-out transactions: Ensure sufficient stock
+    if (formData.transaction_type === 'stock-out' && inventory?.stock < quantity) {
+      toast({
+        title: 'Error',
+        description: `Insufficient stock. Only ${inventory?.stock} available.`,
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
-      const unitCost = parseFloat(formData.unit_cost) || 0;
-      const quantity = parseInt(formData.quantity) || 0;
       const totalCost = unitCost * quantity;
 
+      // Insert transaction into the database
       const { error } = await supabase.from('stock_transactions').insert({
         item_id: formData.item_id,
         warehouse_id: formData.warehouse_id,
@@ -85,6 +137,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
 
       if (error) throw error;
 
+      // Success message
       toast({
         title: 'Success',
         description: 'Transaction recorded successfully!',
@@ -102,9 +155,13 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
         unit_cost: '',
       });
 
+      // Invalidate the queries to update the state
       queryClient.invalidateQueries({ queryKey: ['stock-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['items'] });
-      queryClient.invalidateQueries({ queryKey: ['inventory-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['warehouses'] });
+
+      // Close the dialog
       onOpenChange(false);
     } catch (error: any) {
       toast({
@@ -125,6 +182,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            {/* Item Selection */}
             <div className="space-y-2">
               <Label htmlFor="item">Item *</Label>
               <Select
@@ -144,6 +202,8 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Warehouse Selection */}
             <div className="space-y-2">
               <Label htmlFor="warehouse">Warehouse *</Label>
               <Select
@@ -165,6 +225,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
             </div>
           </div>
 
+          {/* Transaction Type and Quantity */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="transaction_type">Transaction Type *</Label>
@@ -198,6 +259,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
             </div>
           </div>
 
+          {/* Reference Number and Unit Cost */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="reference_number">Reference Number</Label>
@@ -222,6 +284,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
             </div>
           </div>
 
+          {/* Expiration Date */}
           <div className="space-y-2">
             <Label htmlFor="expiration_date">Expiration Date</Label>
             <Input
@@ -232,6 +295,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
             />
           </div>
 
+          {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes">Notes</Label>
             <Textarea
@@ -243,6 +307,7 @@ export const AddTransactionDialog = ({ open, onOpenChange }: AddTransactionDialo
             />
           </div>
 
+          {/* Action Buttons */}
           <div className="flex justify-end space-x-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

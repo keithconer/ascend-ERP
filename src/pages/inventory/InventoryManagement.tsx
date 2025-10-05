@@ -13,9 +13,6 @@ import { InventoryAlerts } from '@/components/inventory/InventoryAlerts';
 import { AddItemDialog } from '@/components/inventory/AddItemDialog';
 import { InventorySummary } from '@/components/inventory/InventorySummary';
 
-// Conversion rate from USD to PHP, assuming 1 USD = 58 PHP (this can be updated dynamically)
-const USD_TO_PHP = 58;
-
 // Helper function to format currency in Peso (₱)
 const formatCurrency = (value: number | string) => {
   if (typeof value === 'string') value = parseFloat(value);
@@ -29,6 +26,7 @@ export default function InventoryManagement() {
   const { data: inventoryStats } = useQuery({
     queryKey: ['inventory-stats'],
     queryFn: async () => {
+      // Fetch alerts and total inventory data in parallel
       const [lowStockCount, outOfStockCount, totalValue] = await Promise.all([
         supabase
           .from('inventory_alerts')
@@ -42,23 +40,18 @@ export default function InventoryManagement() {
           .eq('is_acknowledged', false),
         supabase
           .from('inventory')
-          .select(`
-            quantity,
-            items(unit_price)
-          `)
+          .select('quantity, items(unit_price)'),
       ]);
 
+      // Calculate total inventory value by summing up (quantity * unit_price)
       const totalInventoryValue = totalValue.data?.reduce((sum, item) => {
         return sum + (item.quantity * (item.items?.unit_price || 0));
       }, 0) || 0;
 
-      // Convert total inventory value from USD to PHP
-      const totalInventoryValueInPHP = totalInventoryValue * USD_TO_PHP;
-
       return {
         lowStock: lowStockCount.count || 0,
         outOfStock: outOfStockCount.count || 0,
-        totalValue: totalInventoryValueInPHP, // Returning value in Peso
+        totalValue: totalInventoryValue, // Returning value in Peso
       };
     },
   });
