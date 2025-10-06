@@ -3,185 +3,142 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client'; // Adjust path as necessary
 
+interface PayableSummary {
+  id: number;
+  invoice_id: string;
+  date: string; // Added date field
+  description: string;
+  amount: number;
+  status: string;
+}
+
+const generateInvoiceId = () => {
+  // Generate a random 8-digit alphanumeric invoice id, e.g. AP-5F3D1A9B
+  const randomStr = Math.random().toString(36).substring(2, 10).toUpperCase();
+  return `AP-${randomStr}`;
+};
+
+const formatDate = (date: Date): string => {
+  // Format date as YYYY-MM-DD
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const AccountsPayable = () => {
-  const [payableData, setPayableData] = useState<any[]>([]);
+  const [payableSummary, setPayableSummary] = useState<PayableSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    async function fetchAccountsPayableData() {
+    async function fetchSummaryData() {
       setLoading(true);
-      console.log('Fetching accounts payable data...');
+      try {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
 
-      // Fetch initial pending Purchase Orders (POs) with their total
-      const { data: poData, error: poError } = await supabase
-        .from('purchase_orders')
-        .select(`
-          id,
-          po_number,
-          supplier_id,
-          status,
-          suppliers(name),
-          order_date,
-          total
-        `)
-        .eq('status', 'pending');  // Only pending POs
+        // For payroll, filter by current month and status 'Pending'
+        const monthStart = new Date(year, month, 1).toISOString();
+        const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999).toISOString();
 
-      if (poError) {
-        console.error('Error fetching Pending Purchase Orders:', poError.message);
-      } else {
-        console.log('Fetched Pending POs:', poData);
+        // Fetch payrolls with status 'Pending' within current month
+        const { data: payrolls, error: payrollError } = await supabase
+          .from('payroll')
+          .select('salary')
+          .gte('payroll_period_start', monthStart)
+          .lte('payroll_period_end', monthEnd)
+          .eq('status', 'Pending');
+
+        if (payrollError) {
+          console.error('Error fetching payroll total:', payrollError.message);
+        }
+
+        const totalPayrollAmount = payrolls?.reduce((acc, p) => acc + (p.salary ?? 0), 0) || 0;
+
+        // Fetch approved purchase orders totals
+        const { data: approvedPOs, error: poError } = await supabase
+          .from('purchase_orders')
+          .select('total')
+          .eq('status', 'approved');
+
+        if (poError) {
+          console.error('Error fetching approved POs total:', poError.message);
+        }
+
+        const totalApprovedPOAmount = approvedPOs?.reduce((acc, po) => acc + (po.total ?? 0), 0) || 0;
+
+        // Construct summary data with today's date string
+        const todayStr = formatDate(now);
+
+        const summaryData: PayableSummary[] = [
+          {
+            id: 1,
+            invoice_id: generateInvoiceId(),
+            date: todayStr,
+            description: 'Total Payroll (Month)',
+            amount: totalPayrollAmount,
+            status: 'Pending', // Change as needed
+          },
+          {
+            id: 2,
+            invoice_id: generateInvoiceId(),
+            date: todayStr,
+            description: 'Total Approved POs',
+            amount: totalApprovedPOAmount,
+            status: 'Pending',
+          },
+        ];
+
+        setPayableSummary(summaryData);
+      } catch (error) {
+        console.error('Error fetching accounts payable summary:', error);
+      } finally {
+        setLoading(false);
       }
-
-      // Fetch initial pending payrolls
-      const { data: payrollData, error: payrollError } = await supabase
-        .from('payroll')
-        .select(`
-          id,
-          employee_id,
-          status,
-          salary,
-          employees(first_name, last_name)
-        `)
-        .eq('status', 'Pending');  // Only pending payrolls
-
-      if (payrollError) {
-        console.error('Error fetching Pending Payrolls:', payrollError.message);
-      } else {
-        console.log('Fetched Pending Payrolls:', payrollData);
-      }
-
-      // Combine the fetched data and store it
-      const initialData = [];
-
-      // Insert POs into the data array
-      poData?.forEach(po => {
-        const invoiceId = `PO-${po.id}`;
-
-        initialData.push({
-          invoice_id: invoiceId,
-          supplier_name: po.suppliers?.name ?? 'Unknown Supplier',
-          po_number: po.po_number,
-          amount: po.total,  // Use the total from the purchase_orders table
-          status: po.status,
-          employee_name: null,
-        });
-      });
-
-      // Insert Payroll data into the data array
-      payrollData?.forEach(payroll => {
-        const invoiceId = `PR-${payroll.id}`;
-        const employeeName = `${payroll.employees?.first_name} ${payroll.employees?.last_name}`;
-
-        initialData.push({
-          invoice_id: invoiceId,
-          supplier_name: null,
-          po_number: null,
-          amount: payroll.salary,
-          status: payroll.status,
-          employee_name: employeeName,
-        });
-      });
-
-      // Set initial data
-      setPayableData(initialData);
-      setLoading(false);
-
-      // Listen for changes in the purchase_orders table (new pending POs)
-      const purchaseOrdersSubscription = supabase
-        .from('purchase_orders')
-        .on('INSERT', payload => {
-          if (payload.new.status === 'pending') {
-            const po = payload.new;
-
-            setPayableData(prevData => [
-              ...prevData,
-              {
-                invoice_id: `PO-${po.id}`,
-                supplier_name: po.suppliers?.name ?? 'Unknown Supplier',
-                po_number: po.po_number,
-                amount: po.total,  // Use the total from the new PO
-                status: po.status,
-                employee_name: null,
-              }
-            ]);
-          }
-        })
-        .subscribe();
-
-      // Listen for changes in the payroll table (new pending payrolls)
-      const payrollsSubscription = supabase
-        .from('payroll')
-        .on('INSERT', payload => {
-          if (payload.new.status === 'Pending') {
-            const payroll = payload.new;
-
-            setPayableData(prevData => [
-              ...prevData,
-              {
-                invoice_id: `PR-${payroll.id}`,
-                supplier_name: null,
-                po_number: null,
-                amount: payroll.salary,
-                status: payroll.status,
-                employee_name: `${payroll.employees?.first_name} ${payroll.employees?.last_name}`,
-              }
-            ]);
-          }
-        })
-        .subscribe();
-
-      // Clean up the subscription when the component is unmounted
-      return () => {
-        purchaseOrdersSubscription.unsubscribe();
-        payrollsSubscription.unsubscribe();
-      };
     }
 
-    fetchAccountsPayableData();
+    fetchSummaryData();
   }, []);
 
   return (
     <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Accounts Payable</h2>
-      <p className="mb-6">View your pending purchase orders and unreleased payroll data.</p>
+      <h2 className="text-2xl font-bold mb-4">Accounts Payable Summary</h2>
+      <p className="mb-6">Summary of total payroll and approved purchase orders for the current month.</p>
 
       {loading ? (
         <p>Loading...</p>
       ) : (
-        <div>
-          <div className="space-y-2">
-            <h3 className="font-bold mb-2">Accounts Payable Data:</h3>
-            <table className="min-w-full table-auto border-collapse border border-gray-300 mb-4">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-4 py-2">Invoice ID</th>
-                  <th className="border border-gray-300 px-4 py-2">Supplier/Employee Name</th>
-                  <th className="border border-gray-300 px-4 py-2">PO Number</th>
-                  <th className="border border-gray-300 px-4 py-2">Amount</th>
-                  <th className="border border-gray-300 px-4 py-2">Status</th>
+        <table className="min-w-full table-auto border-collapse border border-gray-300 mb-4">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border border-gray-300 px-4 py-2">Date</th>
+              <th className="border border-gray-300 px-4 py-2">Invoice ID</th>
+              <th className="border border-gray-300 px-4 py-2">Description</th>
+              <th className="border border-gray-300 px-4 py-2 text-right">Amount</th>
+              <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payableSummary.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="border border-gray-300 px-4 py-2 text-center">
+                  No accounts payable summary data available.
+                </td>
+              </tr>
+            ) : (
+              payableSummary.map(({ id, invoice_id, date, description, amount, status }) => (
+                <tr key={id}>
+                  <td className="border border-gray-300 px-4 py-2 text-center">{date}</td>
+                  <td className="border border-gray-300 px-4 py-2 text-center">{invoice_id}</td>
+                  <td className="border border-gray-300 px-4 py-2">{description}</td>
+                  <td className="border border-gray-300 px-4 py-2 text-right">₱{amount.toFixed(2)}</td>
+                  <td className="border border-gray-300 px-4 py-2 text-center">{status}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {payableData.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="border border-gray-300 px-4 py-2 text-center">
-                      No pending accounts payable data.
-                    </td>
-                  </tr>
-                )}
-                {payableData.map((item, index) => (
-                  <tr key={index}>
-                    <td className="border border-gray-300 px-4 py-2 text-center">{item.invoice_id}</td>
-                    <td className="border border-gray-300 px-4 py-2">{item.supplier_name || item.employee_name}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-center">{item.po_number || 'N/A'}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-right">₱{item.amount?.toFixed(2) || 'N/A'}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-center">{item.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              ))
+            )}
+          </tbody>
+        </table>
       )}
     </div>
   );
