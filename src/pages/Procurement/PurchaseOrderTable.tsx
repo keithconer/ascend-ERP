@@ -17,6 +17,10 @@ import ViewPurchaseOrderModal from "./ViewPurchaseOrderModal";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 
+// Helpers
+const formatCurrency = (value: number) =>
+  `₱${value.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,")}`;
+
 interface Item {
   item_name: string;
   quantity: number;
@@ -90,13 +94,11 @@ export default function PurchaseOrderTable() {
           price: i.items?.unit_price ?? i.price ?? 0,
         }));
 
-        // Calculate the total based on price * quantity for each item
         const calculatedTotal = items.reduce(
           (acc: number, i: Item) => acc + i.price * i.quantity,
           0
         );
 
-        // Update the total in the database if it differs from the calculated total
         if (po.total !== calculatedTotal) {
           updatePurchaseOrderTotal(po.id, calculatedTotal);
         }
@@ -128,16 +130,11 @@ export default function PurchaseOrderTable() {
 
     if (error) {
       toast({
-        title: "Error updating purchase order total",
+        title: "Error updating total",
         description: error.message,
         variant: "destructive",
       });
     }
-  }
-
-  function openViewModal(po: PurchaseOrder) {
-    setSelected(po);
-    setShowView(true);
   }
 
   async function handleDelete(poId: string) {
@@ -149,7 +146,6 @@ export default function PurchaseOrderTable() {
     setDeletingId(poId);
 
     try {
-      // Fetch requisition_id from the purchase order
       const { data: poData, error: fetchError } = await supabase
         .from("purchase_orders")
         .select("requisition_id")
@@ -160,7 +156,6 @@ export default function PurchaseOrderTable() {
 
       const requisitionId = poData?.requisition_id;
 
-      // Delete the purchase order (this also deletes related receipts if ON DELETE CASCADE is used)
       const { error: deletePoError } = await supabase
         .from("purchase_orders")
         .delete()
@@ -168,7 +163,6 @@ export default function PurchaseOrderTable() {
 
       if (deletePoError) throw deletePoError;
 
-      // Delete associated requisition, if it exists
       if (requisitionId) {
         const { error: deleteReqError } = await supabase
           .from("purchase_requisitions")
@@ -199,14 +193,12 @@ export default function PurchaseOrderTable() {
     <>
       <div className="flex flex-col md:flex-row justify-between mb-4 items-start md:items-center gap-4">
         <h2 className="text-2xl font-bold">Purchase Orders</h2>
-        <div className="flex gap-2 w-full md:w-auto">
-          <Input
-            placeholder="Search by supplier name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="md:w-64"
-          />
-        </div>
+        <Input
+          placeholder="Search by supplier name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="md:w-64 w-full"
+        />
       </div>
 
       <div className="overflow-x-auto">
@@ -231,6 +223,7 @@ export default function PurchaseOrderTable() {
                 </TableCell>
               </TableRow>
             )}
+
             {purchaseOrders.map((po) => (
               <TableRow key={po.id}>
                 <TableCell>{po.po_number}</TableCell>
@@ -241,13 +234,15 @@ export default function PurchaseOrderTable() {
                 <TableCell>
                   {po.items.map((i) => `${i.item_name} (${i.quantity})`).join(", ")}
                 </TableCell>
-                <TableCell>${po.total.toFixed(2)}</TableCell>
+                <TableCell className="font-medium">{formatCurrency(po.total)}</TableCell>
                 <TableCell className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => openViewModal(po)}
-                    aria-label="View Purchase Order"
+                    onClick={() => {
+                      setSelected(po);
+                      setShowView(true);
+                    }}
                     disabled={deletingId === po.id}
                   >
                     <EyeIcon className="w-4 h-4" />
@@ -256,7 +251,6 @@ export default function PurchaseOrderTable() {
                     variant="destructive"
                     size="sm"
                     onClick={() => handleDelete(po.id)}
-                    aria-label="Delete Purchase Order"
                     disabled={deletingId === po.id}
                   >
                     <Trash2 className="w-4 h-4" />
