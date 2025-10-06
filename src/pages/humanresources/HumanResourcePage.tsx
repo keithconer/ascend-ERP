@@ -25,7 +25,7 @@ export default function HumanResourcePage() {
             <TabsTrigger value="employee-management">Employee Management</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="reports">Payslips</TabsTrigger>
         
           </TabsList>
 
