@@ -6,39 +6,36 @@ import { supabase } from '@/integrations/supabase/client'; // Adjust path as nec
 interface PayableSummary {
   id: number;
   invoice_id: string;
-  date: string; // Added date field
+  date: string;
   description: string;
   amount: number;
   status: string;
 }
 
-const generateInvoiceId = () => {
-  // Generate a random 8-digit alphanumeric invoice id, e.g. AP-5F3D1A9B
+const generateInvoiceId = (): string => {
   const randomStr = Math.random().toString(36).substring(2, 10).toUpperCase();
   return `AP-${randomStr}`;
 };
 
 const formatDate = (date: Date): string => {
-  // Format date as YYYY-MM-DD
   const year = date.getFullYear();
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const day = date.getDate().toString().padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
-const AccountsPayable = () => {
+const AccountsPayable: React.FC = () => {
   const [payableSummary, setPayableSummary] = useState<PayableSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
-    async function fetchSummaryData() {
+    const fetchSummaryData = async () => {
       setLoading(true);
       try {
         const now = new Date();
         const year = now.getFullYear();
         const month = now.getMonth();
 
-        // For payroll, filter by current month and status 'Pending'
         const monthStart = new Date(year, month, 1).toISOString();
         const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999).toISOString();
 
@@ -68,7 +65,6 @@ const AccountsPayable = () => {
 
         const totalApprovedPOAmount = approvedPOs?.reduce((acc, po) => acc + (po.total ?? 0), 0) || 0;
 
-        // Construct summary data with today's date string
         const todayStr = formatDate(now);
 
         const summaryData: PayableSummary[] = [
@@ -78,7 +74,7 @@ const AccountsPayable = () => {
             date: todayStr,
             description: 'Total Payroll (Month)',
             amount: totalPayrollAmount,
-            status: 'Pending', // Change as needed
+            status: 'Pending',
           },
           {
             id: 2,
@@ -96,7 +92,7 @@ const AccountsPayable = () => {
       } finally {
         setLoading(false);
       }
-    }
+    };
 
     fetchSummaryData();
   }, []);
@@ -112,8 +108,8 @@ const AccountsPayable = () => {
         <table className="min-w-full table-auto border-collapse border border-gray-300 mb-4">
           <thead>
             <tr className="bg-gray-100">
-              <th className="border border-gray-300 px-4 py-2">Date</th>
-              <th className="border border-gray-300 px-4 py-2">Invoice ID</th>
+              <th className="border border-gray-300 px-4 py-2 text-center">Date</th>
+              <th className="border border-gray-300 px-4 py-2 text-center">Invoice ID</th>
               <th className="border border-gray-300 px-4 py-2">Description</th>
               <th className="border border-gray-300 px-4 py-2 text-right">Amount</th>
               <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
