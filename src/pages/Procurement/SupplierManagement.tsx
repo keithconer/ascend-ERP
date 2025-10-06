@@ -20,6 +20,7 @@ interface Supplier {
   name: string;
   contact_info: string | null;
   address: string | null;
+  contract: "direct" | "indirect"; // Added contract field
   created_at: string;
 }
 
@@ -29,10 +30,11 @@ export default function SupplierManagement() {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // For add/edit form fields
+  // Form fields
   const [name, setName] = useState("");
   const [contactInfo, setContactInfo] = useState("");
   const [address, setAddress] = useState("");
+  const [contract, setContract] = useState<"direct" | "indirect">("direct"); // default value
 
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
 
@@ -70,6 +72,7 @@ export default function SupplierManagement() {
     setName("");
     setContactInfo("");
     setAddress("");
+    setContract("direct");
     setOpen(true);
   }
 
@@ -78,6 +81,7 @@ export default function SupplierManagement() {
     setName(supplier.name);
     setContactInfo(supplier.contact_info || "");
     setAddress(supplier.address || "");
+    setContract(supplier.contract);
     setOpen(true);
   }
 
@@ -93,6 +97,7 @@ export default function SupplierManagement() {
       name: name.trim(),
       contact_info: contactInfo.trim() || null,
       address: address.trim() || null,
+      contract,
     });
 
     if (error) {
@@ -122,6 +127,7 @@ export default function SupplierManagement() {
         name: name.trim(),
         contact_info: contactInfo.trim() || null,
         address: address.trim() || null,
+        contract,
       })
       .eq("id", editingSupplier.id);
 
@@ -189,6 +195,7 @@ export default function SupplierManagement() {
               <th className="border border-gray-300 p-2 text-left">Name</th>
               <th className="border border-gray-300 p-2 text-left">Contact Info</th>
               <th className="border border-gray-300 p-2 text-left">Address</th>
+              <th className="border border-gray-300 p-2 text-left">Contract</th>
               <th className="border border-gray-300 p-2 text-left">Created At</th>
               <th className="border border-gray-300 p-2 text-left">Actions</th>
             </tr>
@@ -199,6 +206,7 @@ export default function SupplierManagement() {
                 <td className="border border-gray-300 p-2">{supplier.name}</td>
                 <td className="border border-gray-300 p-2">{supplier.contact_info || "-"}</td>
                 <td className="border border-gray-300 p-2">{supplier.address || "-"}</td>
+                <td className="border border-gray-300 p-2 capitalize">{supplier.contract}</td>
                 <td className="border border-gray-300 p-2">
                   {supplier.created_at
                     ? format(new Date(supplier.created_at), "PPP p")
@@ -270,6 +278,22 @@ export default function SupplierManagement() {
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Supplier Address"
               />
+            </div>
+
+            <div>
+              <label htmlFor="contract" className="block font-semibold mb-1">
+                Contract <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="contract"
+                value={contract}
+                onChange={(e) => setContract(e.target.value as "direct" | "indirect")}
+                className="w-full rounded-md border border-gray-300 px-3 py-2"
+                required
+              >
+                <option value="direct">Direct</option>
+                <option value="indirect">Indirect</option>
+              </select>
             </div>
           </div>
 
