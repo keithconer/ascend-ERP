@@ -15,7 +15,7 @@ import { PurchaseOrder } from "./PurchaseOrderTable";
 
 interface ItemRow {
   id: string;
-  item_id: { id: string; name: string; unit_price?: number }; // added unit_price
+  item_id: { id: string; name: string; unit_price?: number };
   quantity: number;
   price: number;
 }
@@ -59,7 +59,7 @@ export default function ViewPurchaseOrderModal({
   async function fetchItems() {
     const { data, error } = await supabase
       .from("purchase_order_items")
-      .select("id, quantity, price, item_id(id,name,unit_price)")  // <-- fetch unit_price here
+      .select("id, quantity, price, item_id(id,name,unit_price)")
       .eq("purchase_order_id", purchaseOrder.id);
 
     if (error) {
@@ -107,7 +107,6 @@ export default function ViewPurchaseOrderModal({
       if (error) throw error;
 
       const stockItems = items.map((it) => {
-        // Use item price if > 0, else fallback to unit_price
         const unitCost = it.price !== 0 ? it.price : it.item_id.unit_price ?? 0;
 
         return {
@@ -137,7 +136,6 @@ export default function ViewPurchaseOrderModal({
     }
   }
 
-  // Calculate total cost from items using price fallback to unit_price
   const total = items.reduce((acc, it) => {
     const price = it.price !== 0 ? it.price : it.item_id.unit_price ?? 0;
     return acc + price * it.quantity;
@@ -175,13 +173,14 @@ export default function ViewPurchaseOrderModal({
                 const price = it.price !== 0 ? it.price : it.item_id.unit_price ?? 0;
                 return (
                   <li key={it.id}>
-                    {it.item_id.name} — Qty: {it.quantity} @ ${price.toFixed(2)} each
+                    {it.item_id.name} — Qty: {it.quantity} @ ₱{price.toFixed(2)} each
                   </li>
                 );
               })}
             </ul>
-            {/* Display total here */}
-            <div className="mt-4 font-semibold text-right">Total: ${total.toFixed(2)}</div>
+            <div className="mt-4 font-semibold text-right">
+              Total: ₱{total.toFixed(2)}
+            </div>
           </div>
 
           {purchaseOrder.status.toLowerCase().trim() !== "approved" && (
