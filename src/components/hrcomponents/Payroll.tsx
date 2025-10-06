@@ -229,7 +229,7 @@ export default function Payroll() {
         onClick={handleManagePayroll}
         disabled={loading}
       >
-        {loading ? "Saving..." : "Manage Payroll"}
+        {loading ? "Saving..." : "Send to Finance"}
       </button>
     </div>
   );
