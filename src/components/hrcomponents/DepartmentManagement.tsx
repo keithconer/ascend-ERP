@@ -1,127 +1,146 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Plus, Edit, Trash, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+type Department = {
+  id: string;
+  name: string;
+};
 
 const DepartmentManagement = () => {
-  const [departments, setDepartments] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [editingDept, setEditingDept] = useState<{ id: string; name: string } | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDept, setEditingDept] = useState<Department | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newDeptName, setNewDeptName] = useState("");
-  
-  // State for delete confirmation
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deptToDelete, setDeptToDelete] = useState<string | null>(null);
 
-  // Fetch departments when the component mounts
+  // Delete states
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteDeptId, setDeleteDeptId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Fetch departments
+  const fetchDepartments = async (filter = "") => {
+    const query = supabase.from("departments").select("*");
+    if (filter) {
+      query.ilike("name", `%${filter}%`);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.error("Error fetching departments:", error);
+    } else {
+      setDepartments(data || []);
+    }
+  };
+
   useEffect(() => {
-    const fetchDepartments = async () => {
-      const { data, error } = await supabase.from("departments").select("*");
-      if (error) {
-        console.error("Error fetching departments:", error);
-      } else {
-        setDepartments(data || []);
-      }
-    };
     fetchDepartments();
   }, []);
 
-  // Handle department search by typing
+  // Search effect
   useEffect(() => {
-    const handleSearch = async () => {
-      if (!searchTerm) {
-        const { data, error } = await supabase.from("departments").select("*");
-        if (error) {
-          console.error("Error fetching departments:", error);
-        } else {
-          setDepartments(data || []);
-        }
-      } else {
-        const { data, error } = await supabase
-          .from("departments")
-          .select("*")
-          .ilike("name", `%${searchTerm}%`);
-
-        if (error) {
-          console.error("Error searching departments:", error);
-        } else {
-          setDepartments(data || []);
-        }
-      }
-    };
-
-    handleSearch();
+    fetchDepartments(searchTerm);
   }, [searchTerm]);
 
-  // Handle adding a new department
+  // Add new department
   const handleAddDepartment = async () => {
-    const randomID = Math.floor(Math.random() * 100000); // Random ID generation
+    if (!newDeptName.trim()) return;
+
+    const randomID = Math.floor(Math.random() * 100000).toString();
+
     const { error } = await supabase
       .from("departments")
-      .insert([{ id: randomID.toString(), name: newDeptName }]);
+      .insert([{ id: randomID, name: newDeptName.trim() }]);
 
     if (error) {
       console.error("Error adding department:", error);
     } else {
       setDepartments((prev) => [
         ...prev,
-        { id: randomID.toString(), name: newDeptName },
+        { id: randomID, name: newDeptName.trim() },
       ]);
-      setIsModalOpen(false);
-      setNewDeptName(""); // Reset the form
+      setIsAddModalOpen(false);
+      setNewDeptName("");
     }
   };
 
-  // Handle updating a department
+  // Update department
   const handleUpdateDepartment = async () => {
-    if (editingDept) {
-      const { error } = await supabase
-        .from("departments")
-        .update({ name: editingDept.name })
-        .eq("id", editingDept.id);
+    if (!editingDept?.name.trim()) return;
 
-      if (error) {
-        console.error("Error updating department:", error);
-      } else {
-        setDepartments((prev) =>
-          prev.map((dept) =>
-            dept.id === editingDept.id ? { ...dept, name: editingDept.name } : dept
-          )
-        );
-        setEditingDept(null); // Close the modal
-      }
+    const { error } = await supabase
+      .from("departments")
+      .update({ name: editingDept.name.trim() })
+      .eq("id", editingDept.id);
+
+    if (error) {
+      console.error("Error updating department:", error);
+    } else {
+      setDepartments((prev) =>
+        prev.map((d) =>
+          d.id === editingDept.id ? { ...d, name: editingDept.name.trim() } : d
+        )
+      );
+      setEditingDept(null);
     }
   };
 
-  // Handle deleting a department
+  // Delete department with FK constraint handling
   const handleDeleteDepartment = async () => {
-    if (deptToDelete) {
-      const { error } = await supabase.from("departments").delete().eq("id", deptToDelete);
+    if (!deleteDeptId) return;
 
-      if (error) {
-        console.error("Error deleting department:", error);
+    const { error } = await supabase
+      .from("departments")
+      .delete()
+      .eq("id", deleteDeptId);
+
+    if (error) {
+      // Check for FK constraint error, show friendly message
+      if (
+        error.message.includes("foreign key") ||
+        error.message.includes("violates foreign key constraint")
+      ) {
+        setDeleteError(
+          "Cannot delete department because employees are assigned to it."
+        );
       } else {
-        setDepartments((prev) => prev.filter((dept) => dept.id !== deptToDelete)); // Remove from UI
+        setDeleteError("Failed to delete department: " + error.message);
       }
-      setConfirmDelete(false); // Close the confirmation dialog
+      return;
     }
+
+    setDepartments((prev) => prev.filter((d) => d.id !== deleteDeptId));
+    setDeleteError(null);
+    setDeleteDeptId(null);
+    setIsDeleteModalOpen(false);
   };
 
   return (
     <div className="space-y-6">
+      {/* Header + Search + Add */}
       <div className="flex items-center justify-between space-x-4">
-        {/* Department Management Header */}
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Department Management</h2>
-        </div>
+        <h2 className="text-2xl font-bold text-foreground">
+          Department Management
+        </h2>
 
-        {/* Search Bar and Add Department Button */}
         <div className="flex items-center space-x-4">
-          {/* Search Bar */}
+          {/* Search input */}
           <div className="relative">
             <input
               type="text"
@@ -133,9 +152,9 @@ const DepartmentManagement = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           </div>
 
-          {/* Add Department Button */}
+          {/* Add Department button */}
           <Button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => setIsAddModalOpen(true)}
             className="bg-primary text-white hover:bg-primary-dark text-xs py-1 px-3"
           >
             <Plus className="mr-1 h-4 w-4" />
@@ -144,7 +163,7 @@ const DepartmentManagement = () => {
         </div>
       </div>
 
-      {/* Department Table */}
+      {/* Departments Table */}
       <Card className="border-none p-0">
         <CardContent className="p-0">
           <div className="overflow-x-auto mt-4">
@@ -170,8 +189,9 @@ const DepartmentManagement = () => {
                       </Button>
                       <Button
                         onClick={() => {
-                          setDeptToDelete(dept.id);
-                          setConfirmDelete(true);
+                          setDeleteDeptId(dept.id);
+                          setDeleteError(null);
+                          setIsDeleteModalOpen(true);
                         }}
                         className="bg-destructive text-white hover:bg-destructive-dark text-xs py-1 px-2"
                       >
@@ -180,6 +200,16 @@ const DepartmentManagement = () => {
                     </TableCell>
                   </TableRow>
                 ))}
+                {departments.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={3}
+                      className="text-center py-4 text-gray-500"
+                    >
+                      No departments found.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>
@@ -194,23 +224,26 @@ const DepartmentManagement = () => {
               <DialogTitle>Edit Department</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div>
-                <label htmlFor="editDeptName" className="block text-sm font-semibold">
-                  Department Name
-                </label>
-                <input
-                  id="editDeptName"
-                  type="text"
-                  value={editingDept.name}
-                  onChange={(e) => setEditingDept({ ...editingDept, name: e.target.value })}
-                  className="input input-bordered w-full"
-                />
-              </div>
+              <label
+                htmlFor="editDeptName"
+                className="block text-sm font-semibold"
+              >
+                Department Name
+              </label>
+              <input
+                id="editDeptName"
+                type="text"
+                value={editingDept.name}
+                onChange={(e) =>
+                  setEditingDept({ ...editingDept, name: e.target.value })
+                }
+                className="input input-bordered w-full"
+              />
             </div>
             <DialogFooter>
               <Button
                 onClick={handleUpdateDepartment}
-                disabled={!editingDept.name}
+                disabled={!editingDept.name.trim()}
                 className="bg-primary text-white hover:bg-primary-dark text-xs py-1 px-4"
               >
                 Save Changes
@@ -221,29 +254,32 @@ const DepartmentManagement = () => {
       )}
 
       {/* Add Department Modal */}
-      {isModalOpen && (
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      {isAddModalOpen && (
+        <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
           <DialogContent className="max-w-lg p-6 bg-white shadow-lg rounded-lg">
             <DialogHeader>
               <DialogTitle>Add New Department</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div>
-                <label htmlFor="deptName" className="block text-sm font-semibold">Department Name</label>
-                <input
-                  id="deptName"
-                  type="text"
-                  placeholder="Enter Department Name"
-                  className="input input-bordered w-full"
-                  value={newDeptName}
-                  onChange={(e) => setNewDeptName(e.target.value)}
-                />
-              </div>
+              <label
+                htmlFor="deptName"
+                className="block text-sm font-semibold"
+              >
+                Department Name
+              </label>
+              <input
+                id="deptName"
+                type="text"
+                placeholder="Enter Department Name"
+                className="input input-bordered w-full"
+                value={newDeptName}
+                onChange={(e) => setNewDeptName(e.target.value)}
+              />
             </div>
             <DialogFooter>
               <Button
                 onClick={handleAddDepartment}
-                disabled={!newDeptName}
+                disabled={!newDeptName.trim()}
                 className="bg-primary text-white hover:bg-primary-dark text-xs py-1 px-4"
               >
                 Save Department
@@ -254,28 +290,41 @@ const DepartmentManagement = () => {
       )}
 
       {/* Confirm Delete Modal */}
-      {confirmDelete && (
-        <Dialog open={confirmDelete} onOpenChange={() => setConfirmDelete(false)}>
+      {isDeleteModalOpen && (
+        <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
           <DialogContent className="max-w-sm p-6 bg-white shadow-lg rounded-lg">
             <DialogHeader>
               <DialogTitle>Confirm Delete</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <p>Are you sure you want to delete this department?</p>
+              {deleteError && (
+                <p className="text-red-600 font-semibold">{deleteError}</p>
+              )}
             </div>
-            <DialogFooter>
+            <DialogFooter className="space-x-2">
               <Button
                 onClick={handleDeleteDepartment}
                 className="bg-destructive text-white hover:bg-destructive-dark text-xs py-1 px-4"
+                disabled={!!deleteError}
+                title={
+                  deleteError
+                    ? "Cannot delete department due to assigned employees"
+                    : undefined
+                }
               >
                 Yes, Delete
               </Button>
               <Button
-  onClick={() => setConfirmDelete(false)}
-  className="bg-secondary text-black hover:bg-secondary-dark text-xs py-1 px-4"
->
-  Cancel
-</Button>
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setDeleteDeptId(null);
+                  setDeleteError(null);
+                }}
+                className="bg-secondary text-black hover:bg-secondary-dark text-xs py-1 px-4"
+              >
+                Cancel
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
