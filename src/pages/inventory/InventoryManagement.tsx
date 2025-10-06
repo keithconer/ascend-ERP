@@ -19,39 +19,64 @@ const formatCurrency = (value: number | string) => {
   return `₱${value.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
 };
 
-// Main Component
 export default function InventoryManagement() {
   const [showAddItem, setShowAddItem] = useState(false);
 
   const { data: inventoryStats } = useQuery({
     queryKey: ['inventory-stats'],
     queryFn: async () => {
-      // Fetch alerts and total inventory data in parallel
-      const [lowStockCount, outOfStockCount, totalValue] = await Promise.all([
-        supabase
-          .from('inventory_alerts')
-          .select('*', { count: 'exact', head: true })
-          .eq('alert_type', 'low_stock')
-          .eq('is_acknowledged', false),
-        supabase
-          .from('inventory_alerts')
-          .select('*', { count: 'exact', head: true })
-          .eq('alert_type', 'out_of_stock')
-          .eq('is_acknowledged', false),
-        supabase
-          .from('inventory')
-          .select('quantity, items(unit_price)'),
-      ]);
+      const { data, error } = await supabase
+        .from('inventory')
+        .select(`
+          available_quantity,
+          quantity,
+          items (
+            id,
+            name,
+            unit_price,
+            min_threshold
+          )
+        `);
 
-      // Calculate total inventory value by summing up (quantity * unit_price)
-      const totalInventoryValue = totalValue.data?.reduce((sum, item) => {
-        return sum + (item.quantity * (item.items?.unit_price || 0));
-      }, 0) || 0;
+      if (error) {
+        console.error('Failed to fetch inventory stats:', error);
+        throw error;
+      }
+
+      let lowStock = 0;
+      let outOfStock = 0;
+      let criticalStock = 0;
+      let totalValue = 0;
+
+      for (const record of data || []) {
+        const availableQty = record.available_quantity ?? 0;
+        const quantity = record.quantity ?? 0;
+        const unitPrice = record.items?.unit_price ?? 0;
+        const minThreshold = record.items?.min_threshold ?? null;
+
+        totalValue += quantity * unitPrice;
+
+        if (availableQty < 0) {
+          criticalStock++;
+          outOfStock++; // count as out of stock too
+          continue;
+        }
+
+        if (availableQty === 0) {
+          outOfStock++;
+          continue;
+        }
+
+        if (minThreshold !== null && availableQty <= minThreshold) {
+          lowStock++;
+        }
+      }
 
       return {
-        lowStock: lowStockCount.count || 0,
-        outOfStock: outOfStockCount.count || 0,
-        totalValue: totalInventoryValue, // Returning value in Peso
+        lowStock,
+        outOfStock,
+        criticalStock,
+        totalValue,
       };
     },
   });
@@ -62,7 +87,9 @@ export default function InventoryManagement() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Inventory & Warehouse Management</h1>
-            <p className="text-muted-foreground">Manage your inventory, track stock levels, and monitor warehouse operations</p>
+            <p className="text-muted-foreground">
+              Manage your inventory, track stock levels, and monitor warehouse operations
+            </p>
           </div>
           <Button onClick={() => setShowAddItem(true)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -71,14 +98,14 @@ export default function InventoryManagement() {
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium">Low Stock Items</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">{inventoryStats?.lowStock || 0}</div>
-              <p className="text-xs text-muted-foreground">Items below minimum threshold</p>
+              <div className="text-2xl font-bold text-yellow-600">{inventoryStats?.lowStock || 0}</div>
+              <p className="text-xs text-muted-foreground">Below minimum threshold</p>
             </CardContent>
           </Card>
 
@@ -88,7 +115,17 @@ export default function InventoryManagement() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-destructive">{inventoryStats?.outOfStock || 0}</div>
-              <p className="text-xs text-muted-foreground">Items with zero quantity</p>
+              <p className="text-xs text-muted-foreground">Zero or negative quantity</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Critical Stock</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{inventoryStats?.criticalStock || 0}</div>
+              <p className="text-xs text-muted-foreground">Negative stock levels</p>
             </CardContent>
           </Card>
 
