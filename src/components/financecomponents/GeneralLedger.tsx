@@ -1,127 +1,156 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client'; // Adjust import path if needed
 
 // Format value to Peso (₱) currency
-const formatPeso = (value: number) => `₱${value.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,")}`;
+const formatPeso = (value: number) =>
+  `₱${value.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,")}`;
 
 const GeneralLedgerExport = () => {
   const [ledgerData, setLedgerData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
-  useEffect(() => {
-    async function fetchGeneralLedger() {
-      setLoading(true);
+  const fetchGeneralLedger = useCallback(async () => {
+    setLoading(true);
 
-      // **Fetch Stock Ins (Debit)** - Transaction Type: 'stock-in'
-      const { data: stockInsData, error: stockInsError } = await supabase
-        .from('stock_transactions')
-        .select('quantity, unit_cost')
-        .eq('transaction_type', 'stock-in');
+    // **Fetch Stock Ins (Debit)** - Transaction Type: 'stock-in'
+    const { data: stockInsData, error: stockInsError } = await supabase
+      .from('stock_transactions')
+      .select('quantity, unit_cost')
+      .eq('transaction_type', 'stock-in');
 
-      if (stockInsError) {
-        console.error('Error fetching stock-in data:', stockInsError.message);
-      }
-
-      const totalStockInValue = stockInsData?.reduce((acc, row) => {
-        return acc + (row.quantity * row.unit_cost);
-      }, 0) || 0;
-
-      // **Fetch Stock Outs (Credit)** - Transaction Type: 'stock-out'
-      const { data: stockOutsData, error: stockOutsError } = await supabase
-        .from('stock_transactions')
-        .select('quantity, unit_cost')
-        .eq('transaction_type', 'stock-out');
-
-      if (stockOutsError) {
-        console.error('Error fetching stock-out data:', stockOutsError.message);
-      }
-
-      const totalStockOutValue = stockOutsData?.reduce((acc, row) => {
-        return acc + (row.quantity * row.unit_cost);
-      }, 0) || 0;
-
-      // **Fetch Approved Purchase Orders**
-      const { data: poData, error: poError } = await supabase
-        .from('purchase_orders')
-        .select('id, po_number, status')
-        .eq('status', 'approved'); // Fetch only approved POs
-
-      if (poError) {
-        console.error('Error fetching PO data:', poError.message);
-      }
-
-      // **Fetch Purchase Order Items for Approved POs**
-      const totalPoApproved = await Promise.all(
-        poData?.map(async (po) => {
-          const { data: poItems, error: poItemsError } = await supabase
-            .from('purchase_order_items')
-            .select('quantity, price, item_id(id, unit_price)')
-            .eq('purchase_order_id', po.id);
-
-          if (poItemsError) {
-            console.error('Error fetching PO items data:', poItemsError.message);
-            return 0;
-          }
-
-          // Calculate the total for each PO based on item quantity and price
-          const poTotal = poItems?.reduce((acc, item) => {
-            const unitPrice = item.price !== 0 ? item.price : item.item_id.unit_price ?? 0;
-            return acc + (unitPrice * item.quantity);
-          }, 0) || 0;
-
-          return poTotal;
-        })
-      );
-
-      // Sum up the total of all approved POs
-      const totalPoApprovedSum = totalPoApproved.reduce((acc, val) => acc + val, 0);
-
-      // **Fetch Payroll Data (HR Module)**
-      const { data: payrollData, error: payrollError } = await supabase
-        .from('payroll')
-        .select('salary, deduction');
-
-      if (payrollError) {
-        console.error('Error fetching payroll data:', payrollError.message);
-      }
-
-      const totalPayroll = payrollData?.reduce((acc, row) => {
-        const netSalary = row.salary - row.deduction;
-        return acc + netSalary;
-      }, 0) || 0;
-
-      // **Structure the final ledger data**
-      const ledger = [
-        {
-          description: 'Stock In Summary',  // Updated description
-          debit: totalStockInValue,
-          credit: 0,
-        },
-        {
-          description: 'Stock Out Summary',  // Updated description
-          debit: 0,
-          credit: totalStockOutValue,
-        },
-        {
-          description: 'PO Approved',  // PO Approved now placed under Debit
-          debit: totalPoApprovedSum, // Debit for Approved Purchase Orders
-          credit: 0,
-        },
-        {
-          description: 'Total Payroll',
-          debit: totalPayroll,  // Total Payroll remains under Debit
-          credit: 0,
-        },
-      ];
-
-      setLedgerData(ledger);
-      setLoading(false);
+    if (stockInsError) {
+      console.error('Error fetching stock-in data:', stockInsError.message);
     }
 
-    fetchGeneralLedger();
+    const totalStockInValue = stockInsData?.reduce((acc, row) => {
+      return acc + row.quantity * row.unit_cost;
+    }, 0) || 0;
+
+    // **Fetch Stock Outs (Credit)** - Transaction Type: 'stock-out'
+    const { data: stockOutsData, error: stockOutsError } = await supabase
+      .from('stock_transactions')
+      .select('quantity, unit_cost')
+      .eq('transaction_type', 'stock-out');
+
+    if (stockOutsError) {
+      console.error('Error fetching stock-out data:', stockOutsError.message);
+    }
+
+    const totalStockOutValue = stockOutsData?.reduce((acc, row) => {
+      return acc + row.quantity * row.unit_cost;
+    }, 0) || 0;
+
+    // **Fetch Approved Purchase Orders**
+    const { data: poData, error: poError } = await supabase
+      .from('purchase_orders')
+      .select('id, po_number, status')
+      .eq('status', 'approved'); // Fetch only approved POs
+
+    if (poError) {
+      console.error('Error fetching PO data:', poError.message);
+    }
+
+    // **Fetch Purchase Order Items for Approved POs**
+    const totalPoApproved = await Promise.all(
+      poData?.map(async (po) => {
+        const { data: poItems, error: poItemsError } = await supabase
+          .from('purchase_order_items')
+          .select('quantity, price, item_id(id, unit_price)')
+          .eq('purchase_order_id', po.id);
+
+        if (poItemsError) {
+          console.error('Error fetching PO items data:', poItemsError.message);
+          return 0;
+        }
+
+        // Calculate the total for each PO based on item quantity and price
+        const poTotal = poItems?.reduce((acc, item) => {
+          const unitPrice = item.price !== 0 ? item.price : item.item_id.unit_price ?? 0;
+          return acc + unitPrice * item.quantity;
+        }, 0) || 0;
+
+        return poTotal;
+      }) || []
+    );
+
+    // Sum up the total of all approved POs
+    const totalPoApprovedSum = totalPoApproved.reduce((acc, val) => acc + val, 0);
+
+    // **Fetch Payroll Data (HR Module)**
+    const { data: payrollData, error: payrollError } = await supabase
+      .from('payroll')
+      .select('salary, deduction');
+
+    if (payrollError) {
+      console.error('Error fetching payroll data:', payrollError.message);
+    }
+
+    const totalPayroll = payrollData?.reduce((acc, row) => {
+      const netSalary = row.salary - row.deduction;
+      return acc + netSalary;
+    }, 0) || 0;
+
+    // **Structure the final ledger data**
+    const ledger = [
+      {
+        description: 'Stock In Summary',
+        debit: totalStockInValue,
+        credit: 0,
+      },
+      {
+        description: 'Stock Out Summary',
+        debit: 0,
+        credit: totalStockOutValue,
+      },
+      {
+        description: 'PO Approved',
+        debit: totalPoApprovedSum,
+        credit: 0,
+      },
+      {
+        description: 'Total Payroll',
+        debit: totalPayroll,
+        credit: 0,
+      },
+    ];
+
+    setLedgerData(ledger);
+    setLoading(false);
   }, []);
 
-  // Get current date to show in "Updated At"
+  useEffect(() => {
+    fetchGeneralLedger();
+
+    // Setup real-time subscription channel
+    const channel = supabase.channel('realtime-general-ledger');
+
+    // Tables to listen for changes
+    const tables = [
+      'stock_transactions',
+      'purchase_orders',
+      'purchase_order_items',
+      'payroll',
+    ];
+
+    tables.forEach((table) => {
+      channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table },
+        (payload) => {
+          // On any insert, update or delete, refetch ledger
+          fetchGeneralLedger();
+        }
+      );
+    });
+
+    channel.subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchGeneralLedger]);
+
+  // Get current date to show in "Updated At" (updates each render)
   const updatedAt = new Date().toLocaleString();
 
   return (
