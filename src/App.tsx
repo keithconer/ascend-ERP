@@ -11,6 +11,7 @@ import ProcurementPage from "./pages/Procurement/ProcurementPage";
 import HumanResourcePage from "./pages/humanresources/HumanResourcePage";  
 import FinanceManagementPage from "./pages/finance/FinanceManagement";
 import NotFound from "./pages/NotFound";
+import SalesPage from "./pages/sales/SalesPage";
 import { ERPLayout } from "@/components/erp/ERPLayout";
 
 const queryClient = new QueryClient();
@@ -47,11 +48,19 @@ const App = () => (
               </ERPLayout>
             }
           />
-              <Route
-            path="/finance"  // The /hr route should render HumanResourcePage
+          <Route
+            path="/finance"  // The /finance route should render FinanceManagementPage
             element={
               <ERPLayout>
-                <FinanceManagementPage />  {/* Render the HumanResourcePage here */}
+                <FinanceManagementPage />  {/* Render the FinanceManagementPage here */}
+              </ERPLayout>
+            }
+          />
+          <Route
+            path="/sales"  // The /sales route should render SalesPage
+            element={
+              <ERPLayout>
+                <SalesPage />  
               </ERPLayout>
             }
           />
