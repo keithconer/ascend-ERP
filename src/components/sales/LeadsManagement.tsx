@@ -1,6 +1,5 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+// components/LeadsManagement.tsx
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter } from '@/components/
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import AddLeadForm from './AddLeadForm';
+import EditLeadForm from './EditLeadForm';
 
 const LeadsManagement: React.FC = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -18,6 +18,8 @@ const LeadsManagement: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [inventory, setInventory] = useState<Inventory[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
@@ -39,9 +41,13 @@ const LeadsManagement: React.FC = () => {
     fetchData();
   }, []);
 
-const handleLeadAdded = (newLead: any) => {
-  setLeads((prevLeads) => [newLead, ...prevLeads]);  // Add the new lead to the list
-};
+  const handleLeadAdded = (newLead: any) => {
+    setLeads((prevLeads) => [newLead, ...prevLeads]);
+  };
+
+  const handleLeadUpdated = (updatedLead: Lead) => {
+    setLeads(leads.map((lead) => (lead.lead_id === updatedLead.lead_id ? updatedLead : lead)));
+  };
 
   const handleDeleteLead = async (lead_id: number) => {
     const { error } = await supabase.from('leads').delete().eq('lead_id', lead_id);
@@ -53,12 +59,19 @@ const handleLeadAdded = (newLead: any) => {
     }
   };
 
-  const handleConvertToQuotation = (lead_id: number) => {
-    toast({ title: 'Converted', description: `Lead ${lead_id} converted to quotation.` });
-  };
-
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
+
+  const openEditModal = (lead: Lead) => {
+    setSelectedLead(lead);
+    setIsEditModalOpen(true);
+  };
+  const closeEditModal = () => {
+    setSelectedLead(null);
+    setIsEditModalOpen(false);
+  };
+
+  const formatLeadId = (id: number) => `LD-${id.toString().padStart(2, '0')}`;
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -75,7 +88,9 @@ const handleLeadAdded = (newLead: any) => {
                 className="pl-8"
               />
             </div>
-            <Button onClick={openModal} className="ml-4">Add New Lead</Button>
+            <Button onClick={openModal} className="ml-4">
+              Add New Lead
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -101,7 +116,7 @@ const handleLeadAdded = (newLead: any) => {
                   const productInventory = inventory.find((inv) => inv.item_id === lead.product_id);
                   return (
                     <TableRow key={lead.lead_id}>
-                      <TableCell>{lead.lead_id}</TableCell>
+                      <TableCell>{formatLeadId(lead.lead_id)}</TableCell>
                       <TableCell>{lead.customer_name}</TableCell>
                       <TableCell>{lead.contact_info}</TableCell>
                       <TableCell>{product?.name}</TableCell>
@@ -116,7 +131,7 @@ const handleLeadAdded = (newLead: any) => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleConvertToQuotation(lead.lead_id)}
+                            onClick={() => openEditModal(lead)}
                           >
                             <Edit className="h-4 w-4 text-primary" />
                           </Button>
@@ -158,14 +173,30 @@ const handleLeadAdded = (newLead: any) => {
             products={products}
             employees={employees}
             inventory={inventory}
-            onLeadAdded={(newLead) => setLeads([newLead, ...leads])}
+            onLeadAdded={handleLeadAdded}
           />
-          
-          {/* Save/Cancel Buttons */}
-          <DialogFooter className="mt-4 flex justify-end space-x-2">
-            <Button variant="outline" onClick={closeModal}>Cancel</Button>
-         
-          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal for Editing Lead */}
+      <Dialog open={isEditModalOpen} onOpenChange={closeEditModal}>
+        <DialogContent className="max-w-md bg-gray-100 p-6 rounded-lg shadow-lg">
+          <DialogHeader>
+            <h3 className="text-xl font-semibold">Edit Lead</h3>
+            <p className="text-sm text-muted-foreground">Modify the details of the lead below.</p>
+          </DialogHeader>
+
+          {/* Edit Lead Form */}
+          {selectedLead && (
+            <EditLeadForm
+              lead={selectedLead}
+              onClose={closeEditModal}
+              products={products}
+              employees={employees}
+              inventory={inventory}
+              onLeadUpdated={handleLeadUpdated}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

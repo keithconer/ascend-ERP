@@ -1,74 +1,76 @@
-import React, { useState } from 'react';
+// components/EditLeadForm.tsx
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { MdCheckCircle } from 'react-icons/md'; 
+import { MdCheckCircle } from 'react-icons/md';
 
-type AddLeadFormProps = {
+type EditLeadFormProps = {
+  lead: Lead;
   onClose: () => void;
   products: { id: string; name: string; unit_price: number }[];
   employees: { id: number; first_name: string; last_name: string }[];
-  onLeadAdded: (newLead: any) => void;
+  onLeadUpdated: (updatedLead: Lead) => void;
   inventory: { item_id: string; available_quantity: number }[];
 };
 
-const AddLeadForm: React.FC<AddLeadFormProps> = ({
+const EditLeadForm: React.FC<EditLeadFormProps> = ({
+  lead,
   onClose,
   products,
   employees,
-  onLeadAdded,
+  onLeadUpdated,
   inventory,
 }) => {
-  const [customerName, setCustomerName] = useState('');
-  const [contactInfo, setContactInfo] = useState('');
-  const [productId, setProductId] = useState<string | number>('');
-  const [leadStatus, setLeadStatus] = useState<'new' | 'qualified' | 'converted'>('new');
-  const [assignedTo, setAssignedTo] = useState<string | number>('');
-  const [error, setError] = useState<string>('');
-  const [successMessage, setSuccessMessage] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false); // For loading state
+  const [customerName, setCustomerName] = useState(lead.customer_name);
+  const [contactInfo, setContactInfo] = useState(lead.contact_info);
+  const [productId, setProductId] = useState(lead.product_id);
+  const [leadStatus, setLeadStatus] = useState<LeadStatus>(lead.lead_status);
+  const [assignedTo, setAssignedTo] = useState(lead.assigned_to);
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validation
     if (!customerName || !contactInfo || !productId || !assignedTo) {
       setError('All fields are required');
       setSuccessMessage('');
       return;
     }
 
-    setIsLoading(true); // Start loading
+    setIsLoading(true);
 
     try {
-      // Insert the lead into the Supabase database
-      const { error } = await supabase.from('leads').insert([
-        {
+      // Update the lead in the database
+      const { error } = await supabase
+        .from('leads')
+        .update({
           customer_name: customerName,
           contact_info: contactInfo,
           product_id: productId,
           lead_status: leadStatus,
           assigned_to: assignedTo,
-        },
-      ]);
+        })
+        .eq('lead_id', lead.lead_id);
 
-      setIsLoading(false); // Stop loading
+      setIsLoading(false);
 
       if (error) {
-        setError('Error adding lead: ' + error.message);
+        setError('Error updating lead: ' + error.message);
         setSuccessMessage('');
       } else {
-        setSuccessMessage('Lead added successfully!');
-        setError(''); // Clear error if success
+        setSuccessMessage('Lead updated successfully!');
+        setError('');
 
-        // Wait for 2 seconds before closing the modal and updating the leads list
         setTimeout(() => {
           setSuccessMessage('');
-          onLeadAdded({ customer_name: customerName, contact_info: contactInfo, product_id: productId, lead_status: leadStatus, assigned_to: assignedTo });
-          onClose(); // Close the modal after successful addition
+          onLeadUpdated({ ...lead, customer_name: customerName, contact_info: contactInfo, product_id: productId, lead_status: leadStatus, assigned_to: assignedTo });
+          onClose();
         }, 2000);
       }
     } catch (error) {
-      setIsLoading(false); // Stop loading in case of error
+      setIsLoading(false);
       setError('An unexpected error occurred: ' + error.message);
       setSuccessMessage('');
     }
@@ -76,9 +78,8 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-lg max-w-5xl mx-auto">
-      <h2 className="text-2xl mb-4 font-semibold">Add New Lead</h2>
+      <h2 className="text-2xl mb-4 font-semibold">Edit Lead</h2>
 
-      {/* Input Fields */}
       <div className="mb-4">
         <label htmlFor="customerName" className="block text-sm font-medium text-gray-600">
           Customer Name
@@ -135,7 +136,7 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({
         <select
           id="leadStatus"
           value={leadStatus}
-          onChange={(e) => setLeadStatus(e.target.value as 'new' | 'qualified' | 'converted')}
+          onChange={(e) => setLeadStatus(e.target.value as LeadStatus)}
           className="w-full p-2 border border-gray-300 rounded-md"
         >
           <option value="new">New</option>
@@ -165,11 +166,10 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({
 
       {/* Success Messages */}
       {successMessage && (
-          <div className="bg-green-100 text-green-700 p-2 mt-4 rounded-md flex items-center">
-      {/* Use the MdCheckCircle icon from react-icons */}
-      <MdCheckCircle className="text-lg mr-2" />
-      <span>{successMessage}</span>
-    </div>
+        <div className="bg-green-100 text-green-700 p-2 mt-4 rounded-md flex items-center">
+          <MdCheckCircle className="text-lg mr-2" />
+          <span>{successMessage}</span>
+        </div>
       )}
 
       {/* Error Messages */}
@@ -185,11 +185,11 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({
       {/* Submit Button */}
       <div className="mt-4">
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? 'Saving...' : 'Save Lead'}
+          {isLoading ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
     </form>
   );
 };
 
-export default AddLeadForm;
+export default EditLeadForm;
