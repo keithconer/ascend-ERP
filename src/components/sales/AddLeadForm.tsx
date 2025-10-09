@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { MdCheckCircle } from 'react-icons/md'; 
+import { MdCheckCircle } from 'react-icons/md';
 
 type AddLeadFormProps = {
   onClose: () => void;
@@ -27,14 +27,22 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false); // For loading state
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validation
+  // Helper function to validate fields
+  const validateForm = () => {
     if (!customerName || !contactInfo || !productId || !assignedTo) {
       setError('All fields are required');
       setSuccessMessage('');
-      return;
+      return false;
+    }
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // First, validate form before proceeding
+    if (!validateForm()) {
+      return; // Stop form submission if validation fails
     }
 
     setIsLoading(true); // Start loading
@@ -165,11 +173,10 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({
 
       {/* Success Messages */}
       {successMessage && (
-          <div className="bg-green-100 text-green-700 p-2 mt-4 rounded-md flex items-center">
-      {/* Use the MdCheckCircle icon from react-icons */}
-      <MdCheckCircle className="text-lg mr-2" />
-      <span>{successMessage}</span>
-    </div>
+        <div className="bg-green-100 text-green-700 p-2 mt-4 rounded-md flex items-center">
+          <MdCheckCircle className="text-lg mr-2" />
+          <span>{successMessage}</span>
+        </div>
       )}
 
       {/* Error Messages */}
