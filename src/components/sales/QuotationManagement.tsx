@@ -42,6 +42,7 @@ const QuotationManagement: React.FC = () => {
   };
 
   const formatQuotationId = (id: number) => `QT-${id.toString().padStart(2, '0')}`;
+  const formatLeadId = (id: number) => `LD-${id.toString().padStart(2, '0')}`;
 
   const handleApproveOrReject = async (quotation_id: number, action: 'approve' | 'reject') => {
     const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
@@ -118,6 +119,7 @@ const QuotationManagement: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Quotation ID</TableHead>
+                <TableHead>Lead ID</TableHead>
                 <TableHead>Customer Name</TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>Quantity</TableHead>
@@ -136,6 +138,7 @@ const QuotationManagement: React.FC = () => {
                 return (
                   <TableRow key={quotation.quotation_id}>
                     <TableCell>{formatQuotationId(quotation.quotation_id)}</TableCell>
+                    <TableCell>{formatLeadId(quotation.lead_id)}</TableCell>
                     <TableCell>{quotation.customer_name}</TableCell>
                     <TableCell>{product?.name || 'N/A'}</TableCell>
                     <TableCell>{quotation.quantity}</TableCell>
