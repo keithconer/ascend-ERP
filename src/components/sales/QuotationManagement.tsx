@@ -4,97 +4,99 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Edit, Trash2, Search } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader } from '@/components/ui/dialog';
+import { Trash2, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import AddLeadForm from './AddLeadForm';
-import EditLeadForm from './EditLeadForm';
+import type { Product, Employee, Quotation } from '@/types/leads';
 
 const QuotationManagement: React.FC = () => {
-  const [leads, setLeads] = useState<Lead[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
-    // Fetch leads and quotations from the database
-    const fetchData = async () => {
-      const [leadsData, quotationsData] = await Promise.all([
-        supabase.from('leads').select('*'),
-        supabase.from('quotations').select('*'),
-      ]);
-      setLeads(leadsData.data || []);
-      setQuotations(quotationsData.data || []);
-    };
-
     fetchData();
   }, []);
 
-  const handleConvertToQuotation = async (lead_id: number) => {
-    const lead = leads.find((lead) => lead.lead_id === lead_id);
-    if (lead) {
-      // Generate Quotation ID (e.g., QT-01, QT-02)
-      const currentQuotations = quotations.length;
-      const quotationId = `QT-${(currentQuotations + 1).toString().padStart(2, '0')}`;
-
-      // Calculate Total Amount (Quantity * Unit Price)
-      const product = await supabase
-        .from('items')
-        .select('id, name, unit_price')
-        .eq('id', lead.product_id)
-        .single();
-      const totalAmount = lead.available_stock * product?.unit_price;
-
-      // Insert new quotation into the quotations table
-      const { error } = await supabase.from('quotations').insert([
-        {
-          quotation_id: quotationId,
-          lead_id: lead.lead_id,
-          customer_name: lead.customer_name,
-          product_name: product?.name,
-          quantity: lead.available_stock,
-          unit_price: product?.unit_price,
-          total_amount: totalAmount,
-          status: 'Draft',  // Default status is Draft
-          assigned_to: lead.assigned_to,
-        },
+  const fetchData = async () => {
+    try {
+      const [quotationsData, productsData, employeesData] = await Promise.all([
+        supabase.from('quotations').select('*').order('created_at', { ascending: false }),
+        supabase.from('items').select('id, name, unit_price'),
+        supabase.from('employees').select('id, first_name, last_name'),
       ]);
 
-      if (error) {
-        toast({ title: 'Error', description: 'Failed to convert lead to quotation.', variant: 'destructive' });
-      } else {
-        toast({ title: 'Success', description: 'Lead successfully converted to quotation.' });
-        setQuotations([...quotations, { quotation_id: quotationId, ...lead, total_amount: totalAmount }]);
-      }
+      setQuotations(quotationsData.data || []);
+      setProducts(productsData.data || []);
+      setEmployees(employeesData.data || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load quotations',
+        variant: 'destructive',
+      });
     }
   };
 
-  const formatQuotationId = (id: string) => `QT-${id}`;
+  const formatQuotationId = (id: number) => `QT-${id.toString().padStart(2, '0')}`;
 
-  const handleApproveOrReject = async (quotation_id: string, action: 'approve' | 'reject') => {
+  const handleApproveOrReject = async (quotation_id: number, action: 'approve' | 'reject') => {
+    const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
+    
     const { error } = await supabase
       .from('quotations')
-      .update({ status: action === 'approve' ? 'Approved' : 'Rejected' })
+      .update({ status: newStatus })
       .eq('quotation_id', quotation_id);
 
     if (error) {
-      toast({ title: 'Error', description: `Failed to ${action} quotation.`, variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: `Failed to ${action} quotation.`, 
+        variant: 'destructive' 
+      });
     } else {
-      toast({ title: 'Success', description: `Quotation has been ${action}d.` });
-      setQuotations(quotations.map((q) => (q.quotation_id === quotation_id ? { ...q, status: action === 'approve' ? 'Approved' : 'Rejected' } : q)));
+      toast({ 
+        title: 'Success', 
+        description: `Quotation has been ${action}d.` 
+      });
+      
+      setQuotations(
+        quotations.map((q) => 
+          q.quotation_id === quotation_id 
+            ? { ...q, status: newStatus } 
+            : q
+        )
+      );
     }
   };
 
-  const handleDeleteQuotation = async (quotation_id: string) => {
-    const { error } = await supabase.from('quotations').delete().eq('quotation_id', quotation_id);
+  const handleDeleteQuotation = async (quotation_id: number) => {
+    const { error } = await supabase
+      .from('quotations')
+      .delete()
+      .eq('quotation_id', quotation_id);
+      
     if (error) {
-      toast({ title: 'Error', description: 'Failed to delete quotation.', variant: 'destructive' });
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to delete quotation.', 
+        variant: 'destructive' 
+      });
     } else {
-      toast({ title: 'Deleted', description: 'Quotation successfully deleted.' });
+      toast({ 
+        title: 'Deleted', 
+        description: 'Quotation successfully deleted.' 
+      });
       setQuotations(quotations.filter((quotation) => quotation.quotation_id !== quotation_id));
     }
   };
+
+  const filteredQuotations = quotations.filter((quotation) =>
+    quotation.customer_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -127,48 +129,70 @@ const QuotationManagement: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {quotations
-                .filter((quotation) => quotation.customer_name.toLowerCase().includes(searchTerm.toLowerCase()))
-                .map((quotation) => (
+              {filteredQuotations.map((quotation) => {
+                const product = products.find((p) => p.id === quotation.product_id);
+                const employee = employees.find((e) => e.id === quotation.assigned_to);
+                
+                return (
                   <TableRow key={quotation.quotation_id}>
                     <TableCell>{formatQuotationId(quotation.quotation_id)}</TableCell>
                     <TableCell>{quotation.customer_name}</TableCell>
-                    <TableCell>{quotation.product_name}</TableCell>
+                    <TableCell>{product?.name || 'N/A'}</TableCell>
                     <TableCell>{quotation.quantity}</TableCell>
-                    <TableCell>{quotation.unit_price}</TableCell>
-                    <TableCell>{quotation.total_amount}</TableCell>
+                    <TableCell>₱{quotation.unit_price?.toFixed(2)}</TableCell>
+                    <TableCell>₱{quotation.total_amount?.toFixed(2)}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{quotation.status}</Badge>
+                      <Badge 
+                        variant={
+                          quotation.status === 'Approved' 
+                            ? 'default' 
+                            : quotation.status === 'Rejected' 
+                            ? 'destructive' 
+                            : 'outline'
+                        }
+                      >
+                        {quotation.status}
+                      </Badge>
                     </TableCell>
-                    <TableCell>{quotation.assigned_to}</TableCell>
+                    <TableCell>
+                      {employee 
+                        ? `${employee.first_name} ${employee.last_name}` 
+                        : 'N/A'
+                      }
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleApproveOrReject(quotation.quotation_id, 'approve')}
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleApproveOrReject(quotation.quotation_id, 'reject')}
-                        >
-                          Reject
-                        </Button>
+                        {quotation.status === 'Pending' && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleApproveOrReject(quotation.quotation_id, 'approve')}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleApproveOrReject(quotation.quotation_id, 'reject')}
+                            >
+                              Reject
+                            </Button>
+                          </>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleDeleteQuotation(quotation.quotation_id)}
                         >
-                          <Trash2 className="h-4 w-4 text-red-600" />
+                          <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
-              {quotations.length === 0 && (
+                );
+              })}
+              {filteredQuotations.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-8">
                     No quotations found.

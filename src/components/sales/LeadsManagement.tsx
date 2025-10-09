@@ -129,6 +129,7 @@ const LeadsManagement: React.FC = () => {
         lead_id: lead.lead_id,
         customer_name: lead.customer_name,
         product_id: product.id,
+        assigned_to: lead.assigned_to,
         quantity: availableStock,
         unit_price: product.unit_price,
         total_amount: totalAmount,
@@ -148,20 +149,11 @@ const LeadsManagement: React.FC = () => {
         description: 'Lead has been successfully converted to a quotation.',
       });
 
+      // Remove lead from the list
       setLeads(leads.filter((lead) => lead.lead_id !== lead_id));
 
-      const newQuotation = {
-        quotation_id: `QT-${quotations.length + 1}`,
-        lead_id: lead.lead_id,
-        customer_name: lead.customer_name,
-        product_id: product.id,
-        quantity: availableStock,
-        unit_price: product.unit_price,
-        total_amount: totalAmount,
-        status: 'Pending',
-      };
-
-      setQuotations([newQuotation, ...quotations]);
+      // Refresh quotations
+      fetchData();
     }
   };
 
