@@ -1,4 +1,3 @@
-// components/LeadsManagement.tsx
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,6 +16,7 @@ const LeadsManagement: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [inventory, setInventory] = useState<Inventory[]>([]);
+  const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -26,16 +26,18 @@ const LeadsManagement: React.FC = () => {
   // Fetch data on mount
   useEffect(() => {
     const fetchData = async () => {
-      const [leadsData, productsData, employeesData, inventoryData] = await Promise.all([
+      const [leadsData, productsData, employeesData, inventoryData, quotationsData] = await Promise.all([
         supabase.from('leads').select('*'),
         supabase.from('items').select('id, name, unit_price'),
         supabase.from('employees').select('id, first_name, last_name'),
         supabase.from('inventory').select('item_id, available_quantity'),
+        supabase.from('quotations').select('*')
       ]);
       setLeads(leadsData.data || []);
       setProducts(productsData.data || []);
       setEmployees(employeesData.data || []);
       setInventory(inventoryData.data || []);
+      setQuotations(quotationsData.data || []);
     };
 
     fetchData();
@@ -59,25 +61,103 @@ const LeadsManagement: React.FC = () => {
     }
   };
 
-  const handleConvertToQuotation = async (lead_id: number) => {
-    const lead = leads.find((lead) => lead.lead_id === lead_id);
-    if (lead) {
-      const { error } = await supabase.from('quotations').insert([
-        {
-          lead_id: lead.lead_id,
-          customer_name: lead.customer_name,
-          product_id: lead.product_id,
-          status: 'Pending',
-        },
-      ]);
-      if (error) {
-        toast({ title: 'Error', description: 'Failed to convert lead to quotation.', variant: 'destructive' });
-      } else {
-        toast({ title: 'Success', description: 'Lead has been converted to a quotation.' });
-        setLeads(leads.filter((lead) => lead.lead_id !== lead_id)); // Remove lead from active list
-      }
-    }
-  };
+const handleConvertToQuotation = async (lead_id: number) => {
+  // Find the lead using the provided lead_id
+  const lead = leads.find((lead) => lead.lead_id === lead_id);
+
+  if (!lead) {
+    toast({
+      title: 'Error',
+      description: 'Lead not found. Please try again.',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  // Fetch product and inventory details based on the product_id in the lead
+  const product = products.find((product) => product.id === lead.product_id);
+  const inventoryItem = inventory.find((item) => item.item_id === lead.product_id);
+
+  // If product is not found, show an error
+  if (!product) {
+    toast({
+      title: 'Error',
+      description: 'Product not found. Please check the product details.',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  // If inventory item is not found, show an error
+  if (!inventoryItem) {
+    toast({
+      title: 'Error',
+      description: 'Inventory item not found. Please check the inventory details.',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  // Use the available_quantity from the inventory if available_stock is null in the lead
+  const availableStock = lead.available_stock ?? inventoryItem.available_quantity;
+
+  // Log available stock for debugging
+  console.log('Lead Available Stock:', availableStock);
+  console.log('Inventory Available Quantity:', inventoryItem.available_quantity);
+
+  // Ensure that available stock is sufficient for the conversion
+  if (availableStock <= 0 || inventoryItem.available_quantity < availableStock) {
+    toast({
+      title: 'Error',
+      description: 'Insufficient stock. Cannot convert to quotation.',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  // Insert the new quotation into the quotations table
+  const { error } = await supabase.from('quotations').insert([
+    {
+      lead_id: lead.lead_id,
+      customer_name: lead.customer_name,
+      product_id: product.id, // Ensure product_id is used correctly from the product
+      quantity: availableStock, // Use the available stock or available_quantity
+      unit_price: product.unit_price, // Use the unit price from the product
+      status: 'Pending', // Default status for new quotation
+    },
+  ]);
+
+  if (error) {
+    toast({
+      title: 'Error',
+      description: `Failed to convert lead to quotation: ${error.message}`,
+      variant: 'destructive',
+    });
+  } else {
+    toast({
+      title: 'Success',
+      description: 'Lead has been successfully converted to a quotation.',
+    });
+
+    // Remove the lead from the list of leads and add the new quotation
+    setLeads(leads.filter((lead) => lead.lead_id !== lead_id));
+    
+    // You can also auto-generate a quotation ID if needed (e.g., 'QT-001')
+    const newQuotation = {
+      quotation_id: `QT-${quotations.length + 1}`, // Generate a unique quotation ID
+      lead_id: lead.lead_id,
+      customer_name: lead.customer_name,
+      product_id: product.id,
+      quantity: availableStock,
+      unit_price: product.unit_price,
+      status: 'Pending', // Ensure status is set to 'Pending' initially
+    };
+    
+    // Update the quotations list with the newly created quotation
+    setQuotations([newQuotation, ...quotations]);
+  }
+};
+
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
@@ -86,12 +166,15 @@ const LeadsManagement: React.FC = () => {
     setSelectedLead(lead);
     setIsEditModalOpen(true);
   };
+
   const closeEditModal = () => {
     setSelectedLead(null);
     setIsEditModalOpen(false);
   };
 
   const formatLeadId = (id: number) => `LD-${id.toString().padStart(2, '0')}`;
+
+  const formatQuotationId = (id: string) => `QT-${id}`;
 
   return (
     <div className="container mx-auto px-4 py-6">
@@ -133,14 +216,14 @@ const LeadsManagement: React.FC = () => {
                 .filter((lead) => lead.customer_name.toLowerCase().includes(searchTerm.toLowerCase()))
                 .map((lead) => {
                   const product = products.find((product) => product.id === lead.product_id);
-                  const productInventory = inventory.find((inv) => inv.item_id === lead.product_id);
+                  const inventoryItem = inventory.find((inv) => inv.item_id === lead.product_id);
                   return (
                     <TableRow key={lead.lead_id}>
                       <TableCell>{formatLeadId(lead.lead_id)}</TableCell>
                       <TableCell>{lead.customer_name}</TableCell>
                       <TableCell>{lead.contact_info}</TableCell>
                       <TableCell>{product?.name}</TableCell>
-                      <TableCell>{productInventory?.available_quantity}</TableCell>
+                      <TableCell>{inventoryItem?.available_quantity}</TableCell>
                       <TableCell>{product?.unit_price}</TableCell>
                       <TableCell>
                         <Badge variant="outline">{lead.lead_status}</Badge>
@@ -186,42 +269,27 @@ const LeadsManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Modal for Adding New Lead */}
-      <Dialog open={isModalOpen} onOpenChange={closeModal}>
-        <DialogContent className="max-w-md bg-gray-100 p-6 rounded-lg shadow-lg">
+      {/* Add Lead Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent>
           <DialogHeader>
-            <h3 className="text-xl font-semibold">Add New Lead</h3>
-            <p className="text-sm text-muted-foreground">Fill in the details of the new lead below.</p>
+            <h3>Add New Lead</h3>
           </DialogHeader>
-
-          {/* Add Lead Form */}
-          <AddLeadForm
-            onClose={closeModal}
-            products={products}
-            employees={employees}
-            inventory={inventory}
-            onLeadAdded={handleLeadAdded}
-          />
+          <AddLeadForm onLeadAdded={handleLeadAdded} closeModal={closeModal} />
         </DialogContent>
       </Dialog>
 
-      {/* Modal for Editing Lead */}
-      <Dialog open={isEditModalOpen} onOpenChange={closeEditModal}>
-        <DialogContent className="max-w-md bg-gray-100 p-6 rounded-lg shadow-lg">
+      {/* Edit Lead Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent>
           <DialogHeader>
-            <h3 className="text-xl font-semibold">Edit Lead</h3>
-            <p className="text-sm text-muted-foreground">Modify the details of the lead below.</p>
+            <h3>Edit Lead</h3>
           </DialogHeader>
-
-          {/* Edit Lead Form */}
           {selectedLead && (
             <EditLeadForm
               lead={selectedLead}
-              onClose={closeEditModal}
-              products={products}
-              employees={employees}
-              inventory={inventory}
               onLeadUpdated={handleLeadUpdated}
+              closeModal={closeEditModal}
             />
           )}
         </DialogContent>
