@@ -31,8 +31,9 @@ const LeadsManagement: React.FC = () => {
         supabase.from('items').select('id, name, unit_price'),
         supabase.from('employees').select('id, first_name, last_name'),
         supabase.from('inventory').select('item_id, available_quantity'),
-        supabase.from('quotations').select('*')
+        supabase.from('quotations').select('*'),
       ]);
+
       setLeads(leadsData.data || []);
       setProducts(productsData.data || []);
       setEmployees(employeesData.data || []);
@@ -61,10 +62,9 @@ const LeadsManagement: React.FC = () => {
     }
   };
 
-const handleConvertToQuotation = async (lead_id: number) => {
+  const handleConvertToQuotation = async (lead_id: number) => {
   // Find the lead using the provided lead_id
   const lead = leads.find((lead) => lead.lead_id === lead_id);
-
   if (!lead) {
     toast({
       title: 'Error',
@@ -78,7 +78,7 @@ const handleConvertToQuotation = async (lead_id: number) => {
   const product = products.find((product) => product.id === lead.product_id);
   const inventoryItem = inventory.find((item) => item.item_id === lead.product_id);
 
-  // If product is not found, show an error
+  // If product or inventory item is not found, show an error
   if (!product) {
     toast({
       title: 'Error',
@@ -87,8 +87,6 @@ const handleConvertToQuotation = async (lead_id: number) => {
     });
     return;
   }
-
-  // If inventory item is not found, show an error
   if (!inventoryItem) {
     toast({
       title: 'Error',
@@ -98,14 +96,10 @@ const handleConvertToQuotation = async (lead_id: number) => {
     return;
   }
 
-  // Use the available_quantity from the inventory if available_stock is null in the lead
+  // Use available_stock from the lead or inventory if available_stock is null in the lead
   const availableStock = lead.available_stock ?? inventoryItem.available_quantity;
 
-  // Log available stock for debugging
-  console.log('Lead Available Stock:', availableStock);
-  console.log('Inventory Available Quantity:', inventoryItem.available_quantity);
-
-  // Ensure that available stock is sufficient for the conversion
+  // Ensure sufficient stock
   if (availableStock <= 0 || inventoryItem.available_quantity < availableStock) {
     toast({
       title: 'Error',
@@ -115,14 +109,18 @@ const handleConvertToQuotation = async (lead_id: number) => {
     return;
   }
 
+  // Calculate the total amount (unit_price * quantity)
+  const totalAmount = product.unit_price * availableStock;
+
   // Insert the new quotation into the quotations table
   const { error } = await supabase.from('quotations').insert([
     {
       lead_id: lead.lead_id,
       customer_name: lead.customer_name,
-      product_id: product.id, // Ensure product_id is used correctly from the product
-      quantity: availableStock, // Use the available stock or available_quantity
-      unit_price: product.unit_price, // Use the unit price from the product
+      product_id: product.id,
+      quantity: availableStock,
+      unit_price: product.unit_price,
+      total_amount: totalAmount, // Include total amount
       status: 'Pending', // Default status for new quotation
     },
   ]);
@@ -139,21 +137,22 @@ const handleConvertToQuotation = async (lead_id: number) => {
       description: 'Lead has been successfully converted to a quotation.',
     });
 
-    // Remove the lead from the list of leads and add the new quotation
+    // Remove the lead from the list and add the new quotation
     setLeads(leads.filter((lead) => lead.lead_id !== lead_id));
     
-    // You can also auto-generate a quotation ID if needed (e.g., 'QT-001')
+    // Auto-generate a quotation ID if needed (e.g., 'QT-001')
     const newQuotation = {
-      quotation_id: `QT-${quotations.length + 1}`, // Generate a unique quotation ID
+      quotation_id: `QT-${quotations.length + 1}`,
       lead_id: lead.lead_id,
       customer_name: lead.customer_name,
       product_id: product.id,
       quantity: availableStock,
       unit_price: product.unit_price,
-      status: 'Pending', // Ensure status is set to 'Pending' initially
+      total_amount: totalAmount,
+      status: 'Pending',
     };
-    
-    // Update the quotations list with the newly created quotation
+
+    // Update quotations state
     setQuotations([newQuotation, ...quotations]);
   }
 };
@@ -217,6 +216,7 @@ const handleConvertToQuotation = async (lead_id: number) => {
                 .map((lead) => {
                   const product = products.find((product) => product.id === lead.product_id);
                   const inventoryItem = inventory.find((inv) => inv.item_id === lead.product_id);
+                  const employee = employees.find((emp) => emp.id === lead.assigned_to);
                   return (
                     <TableRow key={lead.lead_id}>
                       <TableCell>{formatLeadId(lead.lead_id)}</TableCell>
@@ -228,7 +228,7 @@ const handleConvertToQuotation = async (lead_id: number) => {
                       <TableCell>
                         <Badge variant="outline">{lead.lead_status}</Badge>
                       </TableCell>
-                      <TableCell>{employees.find((emp) => emp.id === lead.assigned_to)?.first_name}</TableCell>
+                      <TableCell>{employee?.first_name} {employee?.last_name}</TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-1">
                           <Button
