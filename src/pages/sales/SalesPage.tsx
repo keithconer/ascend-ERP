@@ -17,7 +17,7 @@ export default function SalesPage() {
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="department-management" className="space-y-4">
+        <Tabs defaultValue="leads-management" className="space-y-4">
           <TabsList>
             <TabsTrigger value="leads-management">Leads Management</TabsTrigger>
             <TabsTrigger value="quotation-management">Quotation Management</TabsTrigger>

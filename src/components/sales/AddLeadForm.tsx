@@ -3,17 +3,26 @@ import { supabase } from '@/integrations/supabase/client';
 
 type AddLeadFormProps = {
   onClose: () => void;
-  products: { id: string; name: string }[];
+  products: { id: string; name: string; unit_price: number }[];
   employees: { id: number; first_name: string; last_name: string }[];
+  onLeadAdded: (newLead: any) => void;
+  inventory: { item_id: string; available_quantity: number }[];
 };
 
-const AddLeadForm: React.FC<AddLeadFormProps> = ({ onClose, products, employees }) => {
+const AddLeadForm: React.FC<AddLeadFormProps> = ({
+  onClose,
+  products,
+  employees,
+  onLeadAdded,
+  inventory,
+}) => {
   const [customerName, setCustomerName] = useState('');
   const [contactInfo, setContactInfo] = useState('');
   const [productId, setProductId] = useState<string | number>('');
   const [leadStatus, setLeadStatus] = useState<'new' | 'qualified' | 'converted'>('new');
   const [assignedTo, setAssignedTo] = useState<string | number>('');
   const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,8 +32,7 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({ onClose, products, employees 
       return;
     }
 
-    // Insert new lead into database
-    const { error } = await supabase.from('leads').insert([
+    const { data, error } = await supabase.from('leads').insert([
       {
         customer_name: customerName,
         contact_info: contactInfo,
@@ -36,8 +44,12 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({ onClose, products, employees 
 
     if (error) {
       setError('Error adding lead: ' + error.message);
+      setSuccessMessage(''); // Clear success message if there's an error
     } else {
-      onClose();
+      onLeadAdded(data[0]); // Pass the newly added lead to the parent component
+      setSuccessMessage('Lead added successfully!');
+      setError(''); // Clear error message on success
+      onClose(); // Close the modal after successful addition
     }
   };
 
@@ -45,8 +57,11 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({ onClose, products, employees 
     <div className="modal">
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-lg">
         <h2 className="text-2xl mb-4">Add New Lead</h2>
+
         <div className="mb-4">
-          <label htmlFor="customerName" className="block text-sm font-medium text-gray-600">Customer Name</label>
+          <label htmlFor="customerName" className="block text-sm font-medium text-gray-600">
+            Customer Name
+          </label>
           <input
             id="customerName"
             value={customerName}
@@ -57,7 +72,9 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({ onClose, products, employees 
         </div>
 
         <div className="mb-4">
-          <label htmlFor="contactInfo" className="block text-sm font-medium text-gray-600">Contact Info</label>
+          <label htmlFor="contactInfo" className="block text-sm font-medium text-gray-600">
+            Contact Info
+          </label>
           <input
             id="contactInfo"
             value={contactInfo}
@@ -70,7 +87,9 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({ onClose, products, employees 
         </div>
 
         <div className="mb-4">
-          <label htmlFor="productId" className="block text-sm font-medium text-gray-600">Product</label>
+          <label htmlFor="productId" className="block text-sm font-medium text-gray-600">
+            Product
+          </label>
           <select
             id="productId"
             value={productId}
@@ -87,7 +106,9 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({ onClose, products, employees 
         </div>
 
         <div className="mb-4">
-          <label htmlFor="leadStatus" className="block text-sm font-medium text-gray-600">Lead Status</label>
+          <label htmlFor="leadStatus" className="block text-sm font-medium text-gray-600">
+            Lead Status
+          </label>
           <select
             id="leadStatus"
             value={leadStatus}
@@ -101,7 +122,9 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({ onClose, products, employees 
         </div>
 
         <div className="mb-4">
-          <label htmlFor="assignedTo" className="block text-sm font-medium text-gray-600">Assigned To</label>
+          <label htmlFor="assignedTo" className="block text-sm font-medium text-gray-600">
+            Assigned To
+          </label>
           <select
             id="assignedTo"
             value={assignedTo}
@@ -118,6 +141,7 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({ onClose, products, employees 
         </div>
 
         {error && <p className="text-red-500 text-sm">{error}</p>}
+        {successMessage && <p className="text-green-500 text-sm">{successMessage}</p>}
 
         <div className="mt-4 flex justify-between">
           <button

@@ -8,8 +8,6 @@ type Lead = {
   customer_name: string;
   contact_info: string;
   product_id: string;
-  available_stock: number;
-  unit_price: number;
   lead_status: string;
   assigned_to: number;
   created_at: string;
@@ -19,7 +17,6 @@ type Lead = {
 type Product = {
   id: string;
   name: string;
-  available_quantity: number;
   unit_price: number;
 };
 
@@ -29,15 +26,20 @@ type Employee = {
   last_name: string;
 };
 
+type Inventory = {
+  item_id: string;
+  available_quantity: number;
+};
+
 const LeadsManagement: React.FC = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [inventory, setInventory] = useState<Inventory[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Fetch leads, products, and employees on component mount
+  // Fetch leads, products, employees, and inventory on component mount
   useEffect(() => {
-    // Fetch leads from the database
     const fetchLeads = async () => {
       const { data, error } = await supabase.from('leads').select('*');
       if (error) {
@@ -47,11 +49,10 @@ const LeadsManagement: React.FC = () => {
       }
     };
 
-    // Fetch products from the inventory table
     const fetchProducts = async () => {
       const { data, error } = await supabase
         .from('items') // Fetch from items table for product names
-        .select('id, name, unit_price'); // Make sure to select the necessary columns
+        .select('id, name, unit_price'); // Select necessary columns
       if (error) {
         console.error('Error fetching products:', error);
       } else {
@@ -59,7 +60,6 @@ const LeadsManagement: React.FC = () => {
       }
     };
 
-    // Fetch employees from the employees table
     const fetchEmployees = async () => {
       const { data, error } = await supabase
         .from('employees')
@@ -71,15 +71,26 @@ const LeadsManagement: React.FC = () => {
       }
     };
 
+    const fetchInventory = async () => {
+      const { data, error } = await supabase
+        .from('inventory')
+        .select('item_id, available_quantity');
+      if (error) {
+        console.error('Error fetching inventory:', error);
+      } else {
+        setInventory(data);
+      }
+    };
+
     fetchLeads();
     fetchProducts();
     fetchEmployees();
+    fetchInventory();
   }, []);
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
 
-  // Delete a lead from the database
   const handleDeleteLead = async (lead_id: number) => {
     const { error } = await supabase.from('leads').delete().eq('lead_id', lead_id);
     if (error) {
@@ -89,13 +100,11 @@ const LeadsManagement: React.FC = () => {
     }
   };
 
-  // Handle converting lead to quotation
   const handleConvertToQuotation = (lead_id: number) => {
     console.log(`Lead ${lead_id} converted to quotation.`);
-    // Additional logic to convert the lead to a quotation if necessary
+    // Add additional logic to convert the lead to a quotation if necessary
   };
 
-  // Handle real-time updates when a lead is added
   const handleAddLead = (newLead: Lead) => {
     setLeads([newLead, ...leads]);
   };
@@ -118,6 +127,7 @@ const LeadsManagement: React.FC = () => {
           products={products}
           employees={employees}
           onLeadAdded={handleAddLead}
+          inventory={inventory}
         />
       )}
 
@@ -138,45 +148,43 @@ const LeadsManagement: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {leads.map((lead) => (
-              <tr key={lead.lead_id} className="border-t">
-                <td className="py-3 px-4">{lead.lead_id}</td>
-                <td className="py-3 px-4">{lead.customer_name}</td>
-                <td className="py-3 px-4">{lead.contact_info}</td>
-                <td className="py-3 px-4">
-                  {products.find((product) => product.id === lead.product_id)?.name}
-                </td>
-                <td className="py-3 px-4">
-                  {products.find((product) => product.id === lead.product_id)?.available_quantity}
-                </td>
-                <td className="py-3 px-4">
-                  {products.find((product) => product.id === lead.product_id)?.unit_price}
-                </td>
-                <td className="py-3 px-4">{lead.lead_status}</td>
-                <td className="py-3 px-4">
-                  {employees.find((emp) => emp.id === lead.assigned_to)?.first_name}
-                </td>
-                <td className="py-3 px-4 space-x-2">
-                  <button
-                    className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 focus:outline-none"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none"
-                    onClick={() => handleDeleteLead(lead.lead_id)}
-                  >
-                    Delete
-                  </button>
-                  <button
-                    className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none"
-                    onClick={() => handleConvertToQuotation(lead.lead_id)}
-                  >
-                    Convert to Quotation
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {leads.map((lead) => {
+              const product = products.find((product) => product.id === lead.product_id);
+              const productInventory = inventory.find((inv) => inv.item_id === lead.product_id);
+              return (
+                <tr key={lead.lead_id} className="border-t">
+                  <td className="py-3 px-4">{lead.lead_id}</td>
+                  <td className="py-3 px-4">{lead.customer_name}</td>
+                  <td className="py-3 px-4">{lead.contact_info}</td>
+                  <td className="py-3 px-4">{product?.name}</td>
+                  <td className="py-3 px-4">{productInventory?.available_quantity}</td>
+                  <td className="py-3 px-4">{product?.unit_price}</td>
+                  <td className="py-3 px-4">{lead.lead_status}</td>
+                  <td className="py-3 px-4">
+                    {employees.find((emp) => emp.id === lead.assigned_to)?.first_name}
+                  </td>
+                  <td className="py-3 px-4 space-x-2">
+                    <button
+                      className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 focus:outline-none"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none"
+                      onClick={() => handleDeleteLead(lead.lead_id)}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none"
+                      onClick={() => handleConvertToQuotation(lead.lead_id)}
+                    >
+                      Convert to Quotation
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
