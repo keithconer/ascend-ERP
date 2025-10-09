@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Edit, Trash2, Search } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import AddLeadForm from './AddLeadForm';
@@ -56,6 +56,26 @@ const LeadsManagement: React.FC = () => {
     } else {
       setLeads(leads.filter((lead) => lead.lead_id !== lead_id));
       toast({ title: 'Deleted', description: 'Lead successfully deleted.' });
+    }
+  };
+
+  const handleConvertToQuotation = async (lead_id: number) => {
+    const lead = leads.find((lead) => lead.lead_id === lead_id);
+    if (lead) {
+      const { error } = await supabase.from('quotations').insert([
+        {
+          lead_id: lead.lead_id,
+          customer_name: lead.customer_name,
+          product_id: lead.product_id,
+          status: 'Pending',
+        },
+      ]);
+      if (error) {
+        toast({ title: 'Error', description: 'Failed to convert lead to quotation.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Success', description: 'Lead has been converted to a quotation.' });
+        setLeads(leads.filter((lead) => lead.lead_id !== lead_id)); // Remove lead from active list
+      }
     }
   };
 
@@ -127,7 +147,7 @@ const LeadsManagement: React.FC = () => {
                       </TableCell>
                       <TableCell>{employees.find((emp) => emp.id === lead.assigned_to)?.first_name}</TableCell>
                       <TableCell>
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-1">
                           <Button
                             variant="outline"
                             size="sm"
@@ -141,6 +161,13 @@ const LeadsManagement: React.FC = () => {
                             onClick={() => handleDeleteLead(lead.lead_id)}
                           >
                             <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleConvertToQuotation(lead.lead_id)}
+                          >
+                            Convert
                           </Button>
                         </div>
                       </TableCell>
