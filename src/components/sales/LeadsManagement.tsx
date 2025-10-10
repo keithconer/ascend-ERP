@@ -34,7 +34,7 @@ const LeadsManagement: React.FC = () => {
         supabase.from('leads').select('*'),
         supabase.from('items').select('id, name, unit_price'),
         supabase.from('employees').select('id, first_name, last_name'),
-        supabase.from('inventory').select('item_id, available_quantity'),
+        supabase.from('inventory').select('item_id, quantity'),
         supabase.from('quotations').select('*'),
       ]);
 
@@ -101,10 +101,11 @@ const LeadsManagement: React.FC = () => {
       return;
     }
 
-    // Calculate total available stock from all warehouses
-    const totalStock = inventory
+    // Calculate total available stock
+    const computedStock = inventory
       .filter((item) => item.item_id === lead.product_id)
       .reduce((sum, item) => sum + (item.quantity || 0), 0);
+    const totalStock = typeof lead.available_stock === 'number' ? lead.available_stock : computedStock;
 
     const demandQuantity = lead.demand_quantity || 1;
 
@@ -221,9 +222,10 @@ const LeadsManagement: React.FC = () => {
                 const product = products.find((product) => product.id === lead.product_id);
                 const inventoryItem = inventory.find((inv) => inv.item_id === lead.product_id);
                 const employee = employees.find((emp) => emp.id === lead.assigned_to);
-                const totalStock = inventory
+                const computedStock = inventory
                   .filter((inv) => inv.item_id === lead.product_id)
                   .reduce((sum, inv) => sum + (inv.quantity || 0), 0);
+                const totalStock = typeof lead.available_stock === 'number' ? lead.available_stock : computedStock;
                 return (
                   <TableRow key={lead.lead_id}>
                     <TableCell>{formatLeadId(lead.lead_id)}</TableCell>
