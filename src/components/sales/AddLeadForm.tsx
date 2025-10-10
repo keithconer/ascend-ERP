@@ -97,6 +97,7 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({
             lead_status: leadStatus,
             assigned_to: parseInt(assignedTo),
             demand_quantity: demandQuantity,
+            available_stock: availableStock,
           },
         ])
         .select()
