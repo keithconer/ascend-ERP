@@ -98,6 +98,7 @@ const EditLeadForm: React.FC<EditLeadFormProps> = ({
           lead_status: leadStatus,
           assigned_to: parseInt(assignedTo),
           demand_quantity: demandQuantity,
+          available_stock: availableStock,
         })
         .eq('lead_id', lead.lead_id)
         .select()
