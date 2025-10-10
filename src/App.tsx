@@ -12,6 +12,7 @@ import HumanResourcePage from "./pages/humanresources/HumanResourcePage";
 import FinanceManagementPage from "./pages/finance/FinanceManagement";
 import NotFound from "./pages/NotFound";
 import SalesPage from "./pages/sales/SalesPage";
+import CustomerServicePage from "./pages/customerservice/CustomerServicePage";
 import { ERPLayout } from "@/components/erp/ERPLayout";
 
 const queryClient = new QueryClient();
@@ -61,6 +62,14 @@ const App = () => (
             element={
               <ERPLayout>
                 <SalesPage />  
+              </ERPLayout>
+            }
+          />
+            <Route
+            path="/helpdesk" 
+            element={
+              <ERPLayout>
+                <CustomerServicePage />  
               </ERPLayout>
             }
           />
