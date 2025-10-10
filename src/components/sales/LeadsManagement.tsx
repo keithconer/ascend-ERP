@@ -91,7 +91,6 @@ const LeadsManagement: React.FC = () => {
     }
 
     const product = products.find((product) => product.id === lead.product_id);
-    const inventoryItem = inventory.find((item) => item.item_id === lead.product_id);
 
     if (!product) {
       toast({
@@ -102,27 +101,32 @@ const LeadsManagement: React.FC = () => {
       return;
     }
 
-    if (!inventoryItem) {
+    // Calculate total available stock from all warehouses
+    const totalStock = inventory
+      .filter((item) => item.item_id === lead.product_id)
+      .reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+    const demandQuantity = lead.demand_quantity || 1;
+
+    if (totalStock <= 0) {
       toast({
         title: 'Error',
-        description: 'Inventory item not found. Please check the inventory details.',
+        description: 'No stock available. Cannot convert to quotation.',
         variant: 'destructive',
       });
       return;
     }
 
-    const availableStock = lead.available_stock ?? inventoryItem.available_quantity;
-
-    if (availableStock <= 0 || inventoryItem.available_quantity < availableStock) {
+    if (demandQuantity > totalStock) {
       toast({
-        title: 'Error',
-        description: 'Insufficient stock. Cannot convert to quotation.',
+        title: 'Insufficient Stock',
+        description: `Cannot convert: Demand is ${demandQuantity} units but only ${totalStock} units available.`,
         variant: 'destructive',
       });
       return;
     }
 
-    const totalAmount = product.unit_price * availableStock;
+    const totalAmount = product.unit_price * demandQuantity;
 
     const { error } = await supabase.from('quotations').insert([
       {
@@ -130,7 +134,7 @@ const LeadsManagement: React.FC = () => {
         customer_name: lead.customer_name,
         product_id: product.id,
         assigned_to: lead.assigned_to,
-        quantity: availableStock,
+        quantity: demandQuantity,
         unit_price: product.unit_price,
         total_amount: totalAmount,
         status: 'Pending',
@@ -204,6 +208,7 @@ const LeadsManagement: React.FC = () => {
                 <TableHead>Customer Name</TableHead>
                 <TableHead>Contact Info</TableHead>
                 <TableHead>Product</TableHead>
+                <TableHead>Demand Quantity</TableHead>
                 <TableHead>Available Stock</TableHead>
                 <TableHead>Unit Price</TableHead>
                 <TableHead>Status</TableHead>
@@ -216,13 +221,23 @@ const LeadsManagement: React.FC = () => {
                 const product = products.find((product) => product.id === lead.product_id);
                 const inventoryItem = inventory.find((inv) => inv.item_id === lead.product_id);
                 const employee = employees.find((emp) => emp.id === lead.assigned_to);
+                const totalStock = inventory
+                  .filter((inv) => inv.item_id === lead.product_id)
+                  .reduce((sum, inv) => sum + (inv.quantity || 0), 0);
                 return (
                   <TableRow key={lead.lead_id}>
                     <TableCell>{formatLeadId(lead.lead_id)}</TableCell>
                     <TableCell>{lead.customer_name}</TableCell>
                     <TableCell>{lead.contact_info}</TableCell>
                     <TableCell>{product?.name}</TableCell>
-                    <TableCell>{inventoryItem?.available_quantity}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{lead.demand_quantity || 1}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={totalStock >= (lead.demand_quantity || 1) ? "default" : "destructive"}>
+                        {totalStock}
+                      </Badge>
+                    </TableCell>
                     <TableCell>{product?.unit_price}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{lead.lead_status}</Badge>
@@ -260,7 +275,7 @@ const LeadsManagement: React.FC = () => {
               })}
               {filteredLeads.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8">
+                  <TableCell colSpan={10} className="text-center py-8">
                     No leads found.
                   </TableCell>
                 </TableRow>

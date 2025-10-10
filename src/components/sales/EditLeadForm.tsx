@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { Package } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import type { Lead, Product, Employee, LeadStatus } from '@/types/leads';
 
 type EditLeadFormProps = {
@@ -25,10 +27,34 @@ const EditLeadForm: React.FC<EditLeadFormProps> = ({
   const [customerName, setCustomerName] = useState(lead.customer_name);
   const [contactInfo, setContactInfo] = useState(lead.contact_info);
   const [productId, setProductId] = useState(lead.product_id);
+  const [demandQuantity, setDemandQuantity] = useState<number>(lead.demand_quantity || 1);
+  const [availableStock, setAvailableStock] = useState<number>(0);
   const [leadStatus, setLeadStatus] = useState<LeadStatus>(lead.lead_status);
   const [assignedTo, setAssignedTo] = useState(lead.assigned_to.toString());
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (productId) {
+      fetchAvailableStock(productId);
+    }
+  }, [productId]);
+
+  const fetchAvailableStock = async (itemId: string) => {
+    const { data, error } = await supabase
+      .from('inventory')
+      .select('quantity')
+      .eq('item_id', itemId);
+
+    if (error) {
+      console.error('Error fetching stock:', error);
+      setAvailableStock(0);
+      return;
+    }
+
+    const totalStock = data?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+    setAvailableStock(totalStock);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +63,24 @@ const EditLeadForm: React.FC<EditLeadFormProps> = ({
       toast({
         title: 'Validation Error',
         description: 'All fields are required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (demandQuantity <= 0) {
+      toast({
+        title: 'Validation Error',
+        description: 'Demand quantity must be greater than 0',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (demandQuantity > availableStock) {
+      toast({
+        title: 'Insufficient Stock',
+        description: `Only ${availableStock} units available. Cannot fulfill demand of ${demandQuantity} units.`,
         variant: 'destructive',
       });
       return;
@@ -53,6 +97,7 @@ const EditLeadForm: React.FC<EditLeadFormProps> = ({
           product_id: productId,
           lead_status: leadStatus,
           assigned_to: parseInt(assignedTo),
+          demand_quantity: demandQuantity,
         })
         .eq('lead_id', lead.lead_id)
         .select()
@@ -118,6 +163,34 @@ const EditLeadForm: React.FC<EditLeadFormProps> = ({
             ))}
           </SelectContent>
         </Select>
+        {productId && (
+          <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md">
+            <Package className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm">Available Stock:</span>
+            <Badge variant={availableStock > 0 ? "default" : "destructive"}>
+              {availableStock} units
+            </Badge>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="demandQuantity">Demand Quantity</Label>
+        <Input
+          id="demandQuantity"
+          type="number"
+          min="1"
+          value={demandQuantity}
+          onChange={(e) => setDemandQuantity(parseInt(e.target.value) || 1)}
+          placeholder="Enter quantity needed"
+          disabled={!productId}
+          required
+        />
+        {productId && demandQuantity > availableStock && (
+          <p className="text-sm text-destructive">
+            Insufficient stock! Only {availableStock} units available.
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
