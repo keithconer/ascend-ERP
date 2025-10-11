@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -34,7 +36,7 @@ const LeadsManagement: React.FC = () => {
         supabase.from('leads').select('*'),
         supabase.from('items').select('id, name, unit_price'),
         supabase.from('employees').select('id, first_name, last_name'),
-        supabase.from('inventory').select('item_id, quantity'),
+        supabase.from('inventory').select('item_id, warehouse_id, quantity, available_quantity'),
         supabase.from('quotations').select('*'),
       ]);
 
@@ -58,118 +60,120 @@ const LeadsManagement: React.FC = () => {
   };
 
   const handleLeadUpdated = (updatedLead: Lead) => {
-    setLeads(leads.map((lead) => (lead.lead_id === updatedLead.lead_id ? updatedLead : lead)));
+    setLeads((prev) => prev.map((lead) => (lead.lead_id === updatedLead.lead_id ? updatedLead : lead)));
   };
 
   const handleDeleteLead = async (lead_id: number) => {
     const { error } = await supabase.from('leads').delete().eq('lead_id', lead_id);
-    
     if (error) {
-      toast({ 
-        title: 'Error', 
-        description: 'Failed to delete lead.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: 'Failed to delete lead.',
+        variant: 'destructive',
       });
     } else {
-      setLeads(leads.filter((lead) => lead.lead_id !== lead_id));
-      toast({ 
-        title: 'Deleted', 
-        description: 'Lead successfully deleted.' 
+      setLeads((prev) => prev.filter((lead) => lead.lead_id !== lead_id));
+      toast({
+        title: 'Deleted',
+        description: 'Lead successfully deleted.',
       });
     }
   };
 
   const handleConvertToQuotation = async (lead_id: number) => {
-    const lead = leads.find((lead) => lead.lead_id === lead_id);
+    const lead = leads.find((l) => l.lead_id === lead_id);
     if (!lead) {
       toast({
         title: 'Error',
-        description: 'Lead not found. Please try again.',
+        description: 'Lead not found.',
         variant: 'destructive',
       });
       return;
     }
 
-    const product = products.find((product) => product.id === lead.product_id);
-
+    const product = products.find((p) => p.id === lead.product_id);
     if (!product) {
       toast({
         title: 'Error',
-        description: 'Product not found. Please check the product details.',
+        description: 'Product not found.',
         variant: 'destructive',
       });
       return;
     }
 
-    // Calculate total available stock
-    const computedStock = inventory
-      .filter((item) => item.item_id === lead.product_id)
-      .reduce((sum, item) => sum + (item.quantity || 0), 0);
-    const totalStock = typeof lead.available_stock === 'number' ? lead.available_stock : computedStock;
+    // Get available stock (you might prefer to sum available_quantity)
+    const invEntry = inventory.find((inv) => inv.item_id === lead.product_id);
+    const availableQty = invEntry?.available_quantity ?? 0;
+    const demandQty = lead.demand_quantity || 1;
 
-    const demandQuantity = lead.demand_quantity || 1;
-
-    if (totalStock <= 0) {
-      toast({
-        title: 'Error',
-        description: 'No stock available. Cannot convert to quotation.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (demandQuantity > totalStock) {
+    if (availableQty < demandQty) {
       toast({
         title: 'Insufficient Stock',
-        description: `Cannot convert: Demand is ${demandQuantity} units but only ${totalStock} units available.`,
+        description: `Demand ${demandQty}, but available ${availableQty}`,
         variant: 'destructive',
       });
       return;
     }
 
-    const totalAmount = product.unit_price * demandQuantity;
+    const totalAmount = product.unit_price * demandQty;
 
-    const { error } = await supabase.from('quotations').insert([
+    // Insert quotation
+    const { error: qError } = await supabase.from('quotations').insert([
       {
         lead_id: lead.lead_id,
         customer_name: lead.customer_name,
         product_id: product.id,
         assigned_to: lead.assigned_to,
-        quantity: demandQuantity,
+        quantity: demandQty,
         unit_price: product.unit_price,
         total_amount: totalAmount,
         status: 'Pending',
       },
     ]);
 
-    if (error) {
+    if (qError) {
       toast({
         title: 'Error',
-        description: `Failed to convert lead to quotation: ${error.message}`,
+        description: `Failed to convert: ${qError.message}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Update lead status to "converted"
+    const { error: leadError } = await supabase
+      .from('leads')
+      .update({ lead_status: 'converted' })
+      .eq('lead_id', lead.lead_id);
+
+    if (leadError) {
+      toast({
+        title: 'Warning',
+        description: 'Quotation created but failed to update lead status.',
         variant: 'destructive',
       });
     } else {
-      toast({
-        title: 'Success',
-        description: 'Lead has been successfully converted to a quotation.',
-      });
-
-      // Remove lead from the list
-      setLeads(leads.filter((lead) => lead.lead_id !== lead_id));
-
-      // Refresh quotations
-      fetchData();
+      // Reflect in local state
+      setLeads((prev) =>
+        prev.map((l) => (l.lead_id === lead.lead_id ? { ...l, lead_status: 'converted' } : l))
+      );
     }
+
+    toast({
+      title: 'Success',
+      description: 'Lead converted to quotation and status updated.',
+    });
+
+    // Optionally refresh inventory/quotations
+    fetchData();
   };
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
-
   const openEditModal = (lead: Lead) => {
     setSelectedLead(lead);
     setIsEditModalOpen(true);
   };
-
   const closeEditModal = () => {
     setSelectedLead(null);
     setIsEditModalOpen(false);
@@ -209,7 +213,7 @@ const LeadsManagement: React.FC = () => {
                 <TableHead>Customer Name</TableHead>
                 <TableHead>Contact Info</TableHead>
                 <TableHead>Product</TableHead>
-                <TableHead>Demand Quantity</TableHead>
+                <TableHead>Demand Qty</TableHead>
                 <TableHead>Available Stock</TableHead>
                 <TableHead>Unit Price</TableHead>
                 <TableHead>Status</TableHead>
@@ -219,13 +223,12 @@ const LeadsManagement: React.FC = () => {
             </TableHeader>
             <TableBody>
               {filteredLeads.map((lead) => {
-                const product = products.find((product) => product.id === lead.product_id);
-                const inventoryItem = inventory.find((inv) => inv.item_id === lead.product_id);
+                const product = products.find((p) => p.id === lead.product_id);
+                const invEntry = inventory.find((inv) => inv.item_id === lead.product_id);
+                const availableQty = invEntry?.available_quantity ?? 0;
                 const employee = employees.find((emp) => emp.id === lead.assigned_to);
-                const computedStock = inventory
-                  .filter((inv) => inv.item_id === lead.product_id)
-                  .reduce((sum, inv) => sum + (inv.quantity || 0), 0);
-                const totalStock = typeof lead.available_stock === 'number' ? lead.available_stock : computedStock;
+                const qty = lead.demand_quantity || 1;
+
                 return (
                   <TableRow key={lead.lead_id}>
                     <TableCell>{formatLeadId(lead.lead_id)}</TableCell>
@@ -233,11 +236,11 @@ const LeadsManagement: React.FC = () => {
                     <TableCell>{lead.contact_info}</TableCell>
                     <TableCell>{product?.name}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{lead.demand_quantity || 1}</Badge>
+                      <Badge variant="secondary">{qty}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={totalStock >= (lead.demand_quantity || 1) ? "default" : "destructive"}>
-                        {totalStock}
+                      <Badge variant={availableQty >= qty ? 'default' : 'destructive'}>
+                        {availableQty}
                       </Badge>
                     </TableCell>
                     <TableCell>{product?.unit_price}</TableCell>
@@ -245,15 +248,11 @@ const LeadsManagement: React.FC = () => {
                       <Badge variant="outline">{lead.lead_status}</Badge>
                     </TableCell>
                     <TableCell>
-                      {employee?.first_name} {employee?.last_name}
+                      {employee ? `${employee.first_name} ${employee.last_name}` : '—'}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEditModal(lead)}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => openEditModal(lead)}>
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
@@ -292,12 +291,7 @@ const LeadsManagement: React.FC = () => {
           <DialogHeader>
             <DialogTitle>Add New Lead</DialogTitle>
           </DialogHeader>
-          <AddLeadForm
-            onLeadAdded={handleLeadAdded}
-            closeModal={closeModal}
-            products={products}
-            employees={employees}
-          />
+          <AddLeadForm onLeadAdded={handleLeadAdded} closeModal={closeModal} products={products} employees={employees} />
         </DialogContent>
       </Dialog>
 
