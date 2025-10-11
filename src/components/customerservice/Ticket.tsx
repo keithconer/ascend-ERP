@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import {
@@ -14,6 +14,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
+
+import EditTicket from './EditTicket';
+import DeleteTicket from './DeleteTicket';
 
 import type { Database } from '@/integrations/supabase/types';
 
@@ -42,6 +45,9 @@ export default function Ticket() {
 
   // UI states
   const [showForm, setShowForm] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [editingTicket, setEditingTicket] = useState<TicketRow | null>(null);
+  const [deletingTicket, setDeletingTicket] = useState<TicketRow | null>(null);
 
   // Form state
   const [form, setForm] = useState({
@@ -126,32 +132,22 @@ export default function Ticket() {
     }
   }
 
-  // Fixed function to find highest ticket number and generate next unique ID
   async function generateNextTicketId(): Promise<string> {
     try {
-      // fetch all ticket_ids
       const { data, error } = await supabase
         .from('customer_tickets')
-        .select('ticket_id');
+        .select('ticket_id')
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (error) throw error;
+      if (error || !data || data.length === 0 || !data[0].ticket_id) {
+        return 'TD-01';
+      }
 
-      if (!data || data.length === 0) return 'TD-01';
-
-      // Extract numbers from all ticket_ids and find max
-      let maxNumber = 0;
-      data.forEach((ticket) => {
-        if (ticket.ticket_id) {
-          const match = ticket.ticket_id.match(/TD-(\d+)/);
-          if (match) {
-            const num = parseInt(match[1], 10);
-            if (num > maxNumber) maxNumber = num;
-          }
-        }
-      });
-
-      const nextNumber = maxNumber + 1;
-      return `TD-${String(nextNumber).padStart(2, '0')}`;
+      const lastId = data[0].ticket_id;
+      const match = lastId.match(/TD-(\d+)/);
+      const lastNumber = match ? parseInt(match[1], 10) : 0;
+      return `TD-${String(lastNumber + 1).padStart(2, '0')}`;
     } catch {
       return 'TD-01';
     }
@@ -216,6 +212,21 @@ export default function Ticket() {
     }
   }
 
+  // Filter tickets based on search term (case-insensitive, checks ticket_id, customer_name, issue_type)
+  const filteredTickets = useMemo(() => {
+    if (!searchTerm.trim()) return tickets;
+
+    const lowerSearch = searchTerm.toLowerCase();
+
+    return tickets.filter((ticket) => {
+      return (
+        ticket.ticket_id.toLowerCase().includes(lowerSearch) ||
+        ticket.customers?.customer_name.toLowerCase().includes(lowerSearch) ||
+        ticket.issue_type.toLowerCase().includes(lowerSearch)
+      );
+    });
+  }, [searchTerm, tickets]);
+
   return (
     <div className="space-y-6 p-4">
       <div className="flex justify-between items-center">
@@ -223,6 +234,17 @@ export default function Ticket() {
         <Button onClick={() => setShowForm(!showForm)}>
           {showForm ? 'Cancel' : 'Create Ticket'}
         </Button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="mb-4">
+        <input
+          type="search"
+          placeholder="Search by Ticket ID, Customer Name, Issue Type..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full border rounded px-3 py-2"
+        />
       </div>
 
       {/* Ticket Form */}
@@ -367,21 +389,22 @@ export default function Ticket() {
               <TableHead>Solution</TableHead>
               <TableHead>Description</TableHead>
               <TableHead>Date Reported</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Track Status</TableHead>
               <TableHead>Priority Level</TableHead>
               <TableHead>Assigned To</TableHead>
               <TableHead>Internal Notes</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tickets.length === 0 ? (
+            {filteredTickets.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="text-center py-4 text-gray-500">
+                <TableCell colSpan={14} className="text-center py-4 text-gray-500">
                   No tickets found.
                 </TableCell>
               </TableRow>
             ) : (
-              tickets.map((ticket) => (
+              filteredTickets.map((ticket) => (
                 <TableRow key={ticket.id}>
                   <TableCell>{ticket.ticket_id}</TableCell>
                   <TableCell>{ticket.customers?.customer_id ?? '—'}</TableCell>
@@ -404,12 +427,47 @@ export default function Ticket() {
                       : '—'}
                   </TableCell>
                   <TableCell>{ticket.internal_notes}</TableCell>
+                  <TableCell className="space-x-2">
+                    <Button size="sm" variant="outline" onClick={() => setEditingTicket(ticket)}>
+                      Edit
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => setDeletingTicket(ticket)}>
+                      Delete
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </div>
+
+      {/* Edit Modal */}
+      {editingTicket && (
+        <EditTicket
+          ticket={editingTicket}
+          customers={customers}
+          employees={employees}
+          orders={orders}
+          onClose={() => setEditingTicket(null)}
+          onUpdated={() => {
+            setEditingTicket(null);
+            loadTickets();
+          }}
+        />
+      )}
+
+      {/* Delete Modal */}
+      {deletingTicket && (
+        <DeleteTicket
+          ticket={deletingTicket}
+          onClose={() => setDeletingTicket(null)}
+          onDeleted={() => {
+            setDeletingTicket(null);
+            loadTickets();
+          }}
+        />
+      )}
     </div>
   );
 }
