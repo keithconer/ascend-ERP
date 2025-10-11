@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Search } from 'lucide-react';
+import { Trash2, Search, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import type { Product, Employee, Quotation } from '@/types/leads';
@@ -45,32 +45,102 @@ const QuotationManagement: React.FC = () => {
   const formatLeadId = (id: number) => `LD-${id.toString().padStart(2, '0')}`;
 
   const handleApproveOrReject = async (quotation_id: number, action: 'approve' | 'reject') => {
-    const newStatus = action === 'approve' ? 'Approved' : 'Rejected';
-    
-    const { error } = await supabase
-      .from('quotations')
-      .update({ status: newStatus })
-      .eq('quotation_id', quotation_id);
+    if (action === 'approve') {
+      // Create sales order workflow
+      const quotation = quotations.find(q => q.quotation_id === quotation_id);
+      if (!quotation) return;
 
-    if (error) {
-      toast({ 
-        title: 'Error', 
-        description: `Failed to ${action} quotation.`, 
-        variant: 'destructive' 
-      });
+      try {
+        // Get or create customer
+        const { data: existingCustomer } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('customer_name', quotation.customer_name)
+          .single();
+
+        let customerId: string;
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
+        } else {
+          const { data: newCustomerIdData } = await supabase.rpc('generate_customer_id');
+          const newCustomerId = newCustomerIdData;
+          const { data: newCustomer, error: customerError } = await supabase
+            .from('customers')
+            .insert({
+              customer_id: newCustomerId,
+              customer_name: quotation.customer_name,
+              contact_info: ''
+            })
+            .select()
+            .single();
+
+          if (customerError) throw customerError;
+          customerId = newCustomer.id;
+        }
+
+        // Generate order ID
+        const { data: orderIdData } = await supabase.rpc('generate_order_id');
+        const orderId = orderIdData;
+
+        // Create sales order
+        const { error: orderError } = await supabase
+          .from('sales_orders')
+          .insert({
+            order_id: orderId,
+            customer_id: customerId,
+            product_id: quotation.product_id,
+            demand_quantity: quotation.quantity,
+            total_amount: quotation.total_amount,
+            payment_terms: 'credit',
+            assigned_staff: quotation.assigned_to,
+            quotation_id: quotation.quotation_id,
+            lead_id: quotation.lead_id
+          });
+
+        if (orderError) throw orderError;
+
+        // Update quotation status
+        const { error: updateError } = await supabase
+          .from('quotations')
+          .update({ status: 'Approved' })
+          .eq('quotation_id', quotation_id);
+
+        if (updateError) throw updateError;
+
+        toast({ 
+          title: 'Success', 
+          description: 'Quotation approved and sales order created!' 
+        });
+        
+        fetchData();
+      } catch (error: any) {
+        toast({ 
+          title: 'Error', 
+          description: error.message || 'Failed to approve quotation.', 
+          variant: 'destructive' 
+        });
+      }
     } else {
-      toast({ 
-        title: 'Success', 
-        description: `Quotation has been ${action}d.` 
-      });
-      
-      setQuotations(
-        quotations.map((q) => 
-          q.quotation_id === quotation_id 
-            ? { ...q, status: newStatus } 
-            : q
-        )
-      );
+      // Reject workflow
+      const { error } = await supabase
+        .from('quotations')
+        .update({ status: 'Rejected' })
+        .eq('quotation_id', quotation_id);
+
+      if (error) {
+        toast({ 
+          title: 'Error', 
+          description: 'Failed to reject quotation.', 
+          variant: 'destructive' 
+        });
+      } else {
+        toast({ 
+          title: 'Success', 
+          description: 'Quotation has been rejected.' 
+        });
+        
+        fetchData();
+      }
     }
   };
 
@@ -168,10 +238,11 @@ const QuotationManagement: React.FC = () => {
                         {quotation.status === 'Pending' && (
                           <>
                             <Button
-                              variant="outline"
+                              variant="default"
                               size="sm"
                               onClick={() => handleApproveOrReject(quotation.quotation_id, 'approve')}
                             >
+                              <CheckCircle className="h-4 w-4 mr-1" />
                               Approve
                             </Button>
                             <Button

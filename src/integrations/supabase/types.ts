@@ -47,6 +47,66 @@ export type Database = {
         }
         Relationships: []
       }
+      accounts_receivable: {
+        Row: {
+          created_at: string | null
+          customer_id: string | null
+          due_date: string | null
+          id: string
+          invoice_date: string
+          invoice_id: string
+          paid_date: string | null
+          payment_status: string | null
+          sales_order_id: string | null
+          total_amount: number
+          unit_price: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_id: string
+          paid_date?: string | null
+          payment_status?: string | null
+          sales_order_id?: string | null
+          total_amount: number
+          unit_price: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_id?: string
+          paid_date?: string | null
+          payment_status?: string | null
+          sales_order_id?: string | null
+          total_amount?: number
+          unit_price?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_receivable_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_sales_order_id_fkey"
+            columns: ["sales_order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       attendance: {
         Row: {
           date: string | null
@@ -106,6 +166,33 @@ export type Database = {
           id?: string
           name?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      customers: {
+        Row: {
+          contact_info: string | null
+          created_at: string | null
+          customer_id: string
+          customer_name: string
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          contact_info?: string | null
+          created_at?: string | null
+          customer_id: string
+          customer_name: string
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          contact_info?: string | null
+          created_at?: string | null
+          customer_id?: string
+          customer_name?: string
+          id?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -708,6 +795,93 @@ export type Database = {
           },
         ]
       }
+      sales_orders: {
+        Row: {
+          assigned_staff: number | null
+          created_at: string | null
+          customer_id: string | null
+          delivery_status: string | null
+          demand_quantity: number
+          id: string
+          lead_id: number | null
+          order_date: string
+          order_id: string
+          payment_terms: string | null
+          product_id: string | null
+          quotation_id: number | null
+          total_amount: number
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_staff?: number | null
+          created_at?: string | null
+          customer_id?: string | null
+          delivery_status?: string | null
+          demand_quantity: number
+          id?: string
+          lead_id?: number | null
+          order_date?: string
+          order_id: string
+          payment_terms?: string | null
+          product_id?: string | null
+          quotation_id?: number | null
+          total_amount: number
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_staff?: number | null
+          created_at?: string | null
+          customer_id?: string | null
+          delivery_status?: string | null
+          demand_quantity?: number
+          id?: string
+          lead_id?: number | null
+          order_date?: string
+          order_id?: string
+          payment_terms?: string | null
+          product_id?: string | null
+          quotation_id?: number | null
+          total_amount?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_orders_assigned_staff_fkey"
+            columns: ["assigned_staff"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["lead_id"]
+          },
+          {
+            foreignKeyName: "sales_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["quotation_id"]
+          },
+        ]
+      }
       stock_transactions: {
         Row: {
           created_at: string
@@ -830,7 +1004,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      check_customer_credit_status: {
+        Args: { p_customer_id: string }
+        Returns: {
+          has_unpaid: boolean
+          unpaid_count: number
+        }[]
+      }
+      generate_customer_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_invoice_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_order_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_unique_id: {
+        Args: { column_name: string; prefix: string; table_name: string }
+        Returns: string
+      }
     }
     Enums: {
       department_type:
