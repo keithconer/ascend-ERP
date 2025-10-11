@@ -18,13 +18,12 @@ export default function CustomerServicePage() {
         </p>
       </div>
 
-    
-      <Tabs defaultValue="issues" className="space-y-4">
+      {/* Main Tabs: Ticket Management / Issues / Solutions */}
+      <Tabs defaultValue="ticket-management" className="space-y-4">
         <TabsList>
-
-        <TabsTrigger value="issues">Issues</TabsTrigger>
-        <TabsTrigger value="solutions">Solutions</TabsTrigger>
           <TabsTrigger value="ticket-management">Ticket Management</TabsTrigger>
+          <TabsTrigger value="issues">Issues</TabsTrigger>
+          <TabsTrigger value="solutions">Solutions</TabsTrigger>
         </TabsList>
 
         {/* Ticket Management Sub-tabs */}
