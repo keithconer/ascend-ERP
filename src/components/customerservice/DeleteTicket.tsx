@@ -1,51 +1,75 @@
-'use client';
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+interface DeleteTicketProps {
+  ticketId: string;
+  ticketDisplayId: string;
+}
 
-import type { Database } from '@/integrations/supabase/types';
+export default function DeleteTicket({ ticketId, ticketDisplayId }: DeleteTicketProps) {
+  const queryClient = useQueryClient();
 
-type TicketRow = Database['public']['Tables']['customer_tickets']['Row'] & {
-  ticket_id: string;
-};
+  const deleteTicketMutation = useMutation({
+    mutationFn: async () => {
+      // Delete ticket (cascade will handle issues and solutions)
+      const { error } = await supabase
+        .from("customer_tickets")
+        .delete()
+        .eq("ticket_id", ticketId);
 
-type DeleteTicketProps = {
-  ticket: TicketRow;
-  onClose: () => void;
-  onDeleted: () => void;
-};
-
-export default function DeleteTicket({ ticket, onClose, onDeleted }: DeleteTicketProps) {
-  async function onDelete() {
-    try {
-      const { error } = await supabase.from('customer_tickets').delete().eq('id', ticket.id);
       if (error) throw error;
-      toast.success(`Ticket ${ticket.ticket_id} deleted`);
-      onDeleted();
-    } catch (error: any) {
+    },
+    onSuccess: () => {
+      toast.success("Ticket and related records deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["customer_tickets"] });
+      queryClient.invalidateQueries({ queryKey: ["customer_issues"] });
+      queryClient.invalidateQueries({ queryKey: ["customer_solutions"] });
+    },
+    onError: (error: any) => {
       toast.error(`Failed to delete ticket: ${error.message}`);
-    }
-  }
+    },
+  });
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white p-6 rounded-md max-w-sm w-full">
-        <h3 className="text-lg font-semibold mb-4">Delete Ticket</h3>
-        <p>
-          Are you sure you want to delete ticket <strong>{ticket.ticket_id}</strong>? This action
-          cannot be undone.
-        </p>
-
-        <div className="mt-6 flex justify-end space-x-2">
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="destructive" onClick={onDelete}>
-            Delete
-          </Button>
-        </div>
-      </div>
-    </div>
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="destructive" size="sm">
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Ticket</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete ticket {ticketDisplayId}? This will
+            also delete all related issues and solutions. This action cannot be
+            undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => deleteTicketMutation.mutate()}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {deleteTicketMutation.isPending ? "Deleting..." : "Delete"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

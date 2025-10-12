@@ -1,8 +1,17 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -10,293 +19,219 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { format } from 'date-fns';
-
-import type { Database } from '@/integrations/supabase/types';
-
-type TicketRow = Database['public']['Tables']['customer_tickets']['Row'];
-type Employee = Database['public']['Tables']['employees']['Row'];
-
-type SolutionRow = {
-  id: string;
-  solution_id: string;
-  ticket_id: string;
-  order_id: string | null;
-  issue_type: string;
-  solution_choice: string;
-  assigned_to: number | null;
-  date_reported: string;
-  resolution_status: string;
-};
-
-const SOLUTION_CHOICES = ['Replacement', 'Ship missing item', 'Refund'];
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 export default function Solutions() {
-  const [solutions, setSolutions] = useState<SolutionRow[]>([]);
-  const [tickets, setTickets] = useState<TicketRow[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<Partial<SolutionRow>>({});
+  const queryClient = useQueryClient();
+  const [selectedIssue, setSelectedIssue] = useState("");
+  const [solutionType, setSolutionType] = useState("");
+  const [quantity, setQuantity] = useState(1);
 
-  useEffect(() => {
-    loadTickets();
-    loadEmployees();
-    loadSolutions();
-  }, []);
-
-  async function loadTickets() {
-    const { data, error } = await supabase
-      .from('customer_tickets')
-      .select('ticket_id, order_id, issue_type, date_reported');
-    if (error) {
-      toast.error('Failed to load tickets: ' + error.message);
-      return;
-    }
-    setTickets(data || []);
-  }
-
-  async function loadEmployees() {
-    const { data, error } = await supabase
-      .from('employees')
-      .select('id, first_name, last_name');
-    if (error) {
-      toast.error('Failed to load employees: ' + error.message);
-      return;
-    }
-    setEmployees(data || []);
-  }
-
-  async function loadSolutions() {
-    try {
-      const { data, error } = await supabase
-        .from('solutions')
-        .select('*')
-        .order('date_reported', { ascending: true });
+  // Fetch issues that don't have solutions yet
+  const { data: availableIssues } = useQuery({
+    queryKey: ["available_issues"],
+    queryFn: async () => {
+      const { data: issuesData, error } = await supabase
+        .from("customer_issues")
+        .select("*")
+        .eq("status", "open")
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      const mapped = (data || []).map((row, idx) => ({
-        ...row,
-        order_id: row.order_id ? `OD-${String(idx + 1).padStart(2, '0')}` : null,
-      })) as SolutionRow[];
+      // Filter out issues that already have solutions
+      const issuesWithoutSolutions = [];
+      for (const issue of issuesData) {
+        const { count } = await supabase
+          .from("customer_solutions")
+          .select("*", { count: "exact", head: true })
+          .eq("issue_id", issue.issue_id);
 
-      setSolutions(mapped);
-    } catch (err: any) {
-      toast.error('Failed to load solutions: ' + err.message);
-    }
-  }
-
-  async function generateNextSolutionId(): Promise<string> {
-    try {
-      const { data, error } = await supabase
-        .from('solutions')
-        .select('solution_id')
-        .order('date_reported', { ascending: false })
-        .limit(1);
-
-      if (error) throw error;
-
-      if (!data || data.length === 0 || !data[0].solution_id) {
-        return 'SOL-01';
-      }
-
-      const last = data[0].solution_id;
-      const match = last.match(/SOL-(\d+)/);
-      const lastNum = match ? parseInt(match[1], 10) : 0;
-      const nextNum = lastNum + 1;
-
-      return `SOL-${String(nextNum).padStart(2, '0')}`;
-    } catch {
-      return 'SOL-01';
-    }
-  }
-
-  async function ensureSolutionsMatchTickets() {
-    for (let i = 0; i < tickets.length; i++) {
-      const t = tickets[i];
-      const exists = solutions.find((s) => s.ticket_id === t.ticket_id);
-
-      if (!exists) {
-        const solId = await generateNextSolutionId();
-        const formattedOrderId = t.order_id ? `OD-${String(i + 1).padStart(2, '0')}` : null;
-
-        const insertObj = {
-          solution_id: solId,
-          ticket_id: t.ticket_id,
-          order_id: formattedOrderId,
-          issue_type: t.issue_type,
-          solution_choice: '',
-          assigned_to: null,
-          date_reported: t.date_reported,
-          resolution_status: 'pending',
-        };
-
-        const { error } = await supabase.from('solutions').insert([insertObj]);
-        if (error) {
-          toast.error('Failed to auto-create solution row: ' + error.message);
+        if (count === 0) {
+          issuesWithoutSolutions.push(issue);
         }
       }
-    }
 
-    await loadSolutions();
-  }
+      // Fetch tickets for these issues
+      const ticketIds = [...new Set(issuesWithoutSolutions.map((i) => i.ticket_id))];
+      const { data: tickets } = await supabase
+        .from("customer_tickets")
+        .select("*")
+        .in("ticket_id", ticketIds);
 
-  useEffect(() => {
-    if (tickets.length > 0) {
-      ensureSolutionsMatchTickets();
-    }
-  }, [tickets]);
+      return issuesWithoutSolutions.map((issue) => ({
+        ...issue,
+        ticket: tickets?.find((t) => t.ticket_id === issue.ticket_id),
+      }));
+    },
+  });
 
-  function onEditClick(index: number) {
-    setEditingIndex(index);
-    setEditForm({ ...solutions[index] });
-  }
-
-  function handleEditChange<K extends keyof SolutionRow>(field: K, value: SolutionRow[K]) {
-    setEditForm((prev) => ({ ...prev, [field]: value }));
-  }
-
-  function cancelEdit() {
-    setEditingIndex(null);
-    setEditForm({});
-  }
-
-  async function saveEdit() {
-    if (editingIndex === null) return;
-    const sol = solutions[editingIndex];
-    const updated = { ...sol, ...editForm } as SolutionRow;
-
-    try {
-      const { error } = await supabase
-        .from('solutions')
-        .update({
-          solution_choice: updated.solution_choice,
-          assigned_to: updated.assigned_to,
-          resolution_status:
-            updated.solution_choice && updated.solution_choice !== ''
-              ? 'resolved'
-              : 'pending',
-        })
-        .eq('solution_id', updated.solution_id);
+  // Fetch all solutions
+  const { data: solutions } = useQuery({
+    queryKey: ["customer_solutions"],
+    queryFn: async () => {
+      const { data: solutionsData, error } = await supabase
+        .from("customer_solutions")
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      toast.success(`Solution ${updated.solution_id} updated`);
-      setEditingIndex(null);
-      loadSolutions();
-    } catch (err: any) {
-      toast.error('Failed to save solution: ' + err.message);
-    }
-  }
+      // Fetch related issues and tickets
+      const issueIds = [...new Set(solutionsData.map((s) => s.issue_id))];
+      const { data: issues } = await supabase
+        .from("customer_issues")
+        .select("*")
+        .in("issue_id", issueIds);
+
+      const ticketIds = [...new Set(solutionsData.map((s) => s.ticket_id))];
+      const { data: tickets } = await supabase
+        .from("customer_tickets")
+        .select("*")
+        .in("ticket_id", ticketIds);
+
+      return solutionsData.map((solution) => ({
+        ...solution,
+        issue: issues?.find((i) => i.issue_id === solution.issue_id),
+        ticket: tickets?.find((t) => t.ticket_id === solution.ticket_id),
+      }));
+    },
+  });
+
+  const createSolutionMutation = useMutation({
+    mutationFn: async () => {
+      const issue = availableIssues?.find((i) => i.issue_id === selectedIssue);
+      if (!issue) throw new Error("Issue not found");
+
+      const { error } = await supabase.from("customer_solutions").insert({
+        ticket_id: issue.ticket_id,
+        issue_id: issue.issue_id,
+        solution_type: solutionType,
+        quantity: solutionType !== "Refund" ? quantity : null,
+        solution_id: "", // Will be auto-generated by trigger
+        status: "pending", // Initial status
+      } as any);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Solution created successfully");
+      queryClient.invalidateQueries({ queryKey: ["customer_solutions"] });
+      queryClient.invalidateQueries({ queryKey: ["available_issues"] });
+      queryClient.invalidateQueries({ queryKey: ["customer_issues"] });
+      queryClient.invalidateQueries({ queryKey: ["customer_tickets"] });
+      setSelectedIssue("");
+      setSolutionType("");
+      setQuantity(1);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to create solution: ${error.message}`);
+    },
+  });
 
   return (
-    <div className="p-4 space-y-6">
-      <h3 className="text-xl font-semibold">Solutions</h3>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Solution ID</TableHead>
-            <TableHead>Issue / Ticket ID</TableHead>
-            <TableHead>Order ID</TableHead>
-            <TableHead>Issue Type</TableHead>
-            <TableHead>Solution Choice</TableHead>
-            <TableHead>Resolved By / Assigned To</TableHead>
-            <TableHead>Date Reported</TableHead>
-            <TableHead>Resolution Status</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {solutions.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={9} className="text-center text-gray-500">
-                No solutions found.
-              </TableCell>
-            </TableRow>
-          ) : (
-            solutions.map((sol, idx) => (
-              <TableRow key={sol.solution_id}>
-                <TableCell>{sol.solution_id}</TableCell>
-                <TableCell>{sol.ticket_id}</TableCell>
-                <TableCell>{sol.order_id ?? '—'}</TableCell>
-                <TableCell>{sol.issue_type}</TableCell>
+    <div className="space-y-6">
+      <div className="space-y-4 p-6 bg-card rounded-lg border">
+        <h3 className="text-lg font-semibold">Create Solution</h3>
 
-                <TableCell>
-                  {editingIndex === idx ? (
-                    <select
-                      value={editForm.solution_choice}
-                      onChange={(e) => handleEditChange('solution_choice', e.target.value)}
-                      className="border rounded px-2 py-1"
-                    >
-                      <option value="">-- Select --</option>
-                      {SOLUTION_CHOICES.map((choice) => (
-                        <option key={choice} value={choice}>
-                          {choice}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    sol.solution_choice || '—'
-                  )}
-                </TableCell>
+        <div className="space-y-2">
+          <Label>Issue</Label>
+          <Select value={selectedIssue} onValueChange={setSelectedIssue}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select issue" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableIssues?.map((issue) => (
+                <SelectItem key={issue.id} value={issue.issue_id}>
+                  {issue.issue_id} - {issue.issue_type} ({issue.ticket?.customer_name})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-                <TableCell>
-                  {editingIndex === idx ? (
-                    <select
-                      value={editForm.assigned_to ?? ''}
-                      onChange={(e) =>
-                        handleEditChange('assigned_to', e.target.value ? Number(e.target.value) : null)
-                      }
-                      className="border rounded px-2 py-1"
-                    >
-                      <option value="">Unassigned</option>
-                      {employees.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.first_name} {emp.last_name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : sol.assigned_to ? (
-                    (() => {
-                      const emp = employees.find((e) => e.id === sol.assigned_to);
-                      return emp ? `${emp.first_name} ${emp.last_name}` : '—';
-                    })()
-                  ) : (
-                    '—'
-                  )}
-                </TableCell>
+        <div className="space-y-2">
+          <Label>Solution Type</Label>
+          <Select value={solutionType} onValueChange={setSolutionType}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select solution" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Replacement">Replacement</SelectItem>
+              <SelectItem value="Ship missing item">Ship missing item</SelectItem>
+              <SelectItem value="Refund">Refund</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-                <TableCell>
-                  {sol.date_reported
-                    ? format(new Date(sol.date_reported), 'MM/dd/yyyy')
-                    : '—'}
-                </TableCell>
+        {solutionType && solutionType !== "Refund" && (
+          <div className="space-y-2">
+            <Label>Quantity</Label>
+            <Input
+              type="number"
+              min="1"
+              value={quantity}
+              onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+            />
+          </div>
+        )}
 
-                <TableCell>{sol.resolution_status}</TableCell>
+        <Button
+          onClick={() => createSolutionMutation.mutate()}
+          disabled={
+            !selectedIssue || !solutionType || createSolutionMutation.isPending
+          }
+        >
+          {createSolutionMutation.isPending ? "Creating..." : "Create Solution"}
+        </Button>
+      </div>
 
-                <TableCell className="space-x-2">
-                  {editingIndex === idx ? (
-                    <>
-                      <Button size="sm" onClick={saveEdit}>
-                        Save
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={cancelEdit}>
-                        Cancel
-                      </Button>
-                    </>
-                  ) : (
-                    <Button size="sm" onClick={() => onEditClick(idx)}>
-                      Edit
-                    </Button>
-                  )}
-                </TableCell>
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Solutions History</h3>
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Solution ID</TableHead>
+                <TableHead>Ticket ID</TableHead>
+                <TableHead>Issue ID</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Solution Type</TableHead>
+                <TableHead>Quantity</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created</TableHead>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+            </TableHeader>
+            <TableBody>
+              {solutions?.map((solution) => (
+                <TableRow key={solution.id}>
+                  <TableCell className="font-medium">
+                    {solution.solution_id}
+                  </TableCell>
+                  <TableCell>{solution.ticket_id}</TableCell>
+                  <TableCell>{solution.issue_id}</TableCell>
+                  <TableCell>{solution.ticket?.customer_name}</TableCell>
+                  <TableCell>{solution.solution_type}</TableCell>
+                  <TableCell>{solution.quantity || "N/A"}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        solution.status === "resolved" ? "default" : "secondary"
+                      }
+                    >
+                      {solution.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(solution.created_at).toLocaleDateString()}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   );
 }
