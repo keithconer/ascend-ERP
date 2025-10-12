@@ -47,7 +47,7 @@ export default function SalesOrderManagement() {
       });
 
       if (creditCheck && creditCheck[0]?.has_unpaid) {
-        throw new Error(Customer has ${creditCheck[0].unpaid_count} unpaid invoice(s). Cannot create new invoice.);
+        throw new Error(`Customer has ${creditCheck[0].unpaid_count} unpaid invoice(s). Cannot create new invoice.`);
       }
 
       const invoiceId = await supabase.rpc('generate_invoice_id').then(res => res.data);
@@ -164,7 +164,7 @@ export default function SalesOrderManagement() {
                   <TableCell>{format(new Date(order.order_date), 'MM/dd/yyyy')}</TableCell>
                   <TableCell>{getStatusBadge(order.delivery_status)}</TableCell>
                   <TableCell>
-                    {order.employees ? ${order.employees.first_name} ${order.employees.last_name} : 'N/A'}
+                    {order.employees ? `${order.employees.first_name} ${order.employees.last_name}` : 'N/A'}
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
