@@ -3,7 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Package } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -56,13 +62,32 @@ const EditLeadForm: React.FC<EditLeadFormProps> = ({
     setAvailableStock(totalStock);
   };
 
+  const handleCustomerNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Allow only letters and spaces
+    if (/^[a-zA-Z\s]*$/.test(value)) {
+      setCustomerName(value);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const namePattern = /^[a-zA-Z\s]+$/;
 
     if (!customerName || !contactInfo || !productId || !assignedTo) {
       toast({
         title: 'Validation Error',
-        description: 'All fields are required',
+        description: 'All fields are required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!namePattern.test(customerName)) {
+      toast({
+        title: 'Invalid Customer Name',
+        description: 'Customer name must contain only letters and spaces.',
         variant: 'destructive',
       });
       return;
@@ -71,7 +96,7 @@ const EditLeadForm: React.FC<EditLeadFormProps> = ({
     if (demandQuantity <= 0) {
       toast({
         title: 'Validation Error',
-        description: 'Demand quantity must be greater than 0',
+        description: 'Demand quantity must be greater than 0.',
         variant: 'destructive',
       });
       return;
@@ -116,7 +141,7 @@ const EditLeadForm: React.FC<EditLeadFormProps> = ({
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to update lead',
+        description: error.message || 'Failed to update lead.',
         variant: 'destructive',
       });
     } finally {
@@ -131,10 +156,11 @@ const EditLeadForm: React.FC<EditLeadFormProps> = ({
         <Input
           id="customerName"
           value={customerName}
-          onChange={(e) => setCustomerName(e.target.value)}
+          onChange={handleCustomerNameChange}
           placeholder="Enter customer name"
           required
         />
+        <p className="text-xs text-muted-foreground">Only letters and spaces are allowed.</p>
       </div>
 
       <div className="space-y-2">
@@ -168,7 +194,7 @@ const EditLeadForm: React.FC<EditLeadFormProps> = ({
           <div className="flex items-center gap-2 mt-2 p-2 bg-muted rounded-md">
             <Package className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">Available Stock:</span>
-            <Badge variant={availableStock > 0 ? "default" : "destructive"}>
+            <Badge variant={availableStock > 0 ? 'default' : 'destructive'}>
               {availableStock} units
             </Badge>
           </div>
