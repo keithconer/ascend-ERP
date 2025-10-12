@@ -40,6 +40,8 @@ export default function Ticket() {
     issue_type: "",
     description: "",
     priority: "medium",
+    assigned_to: "",
+    internal_notes: "",
   });
 
   // Fetch customers that exist in sales_orders
@@ -60,6 +62,19 @@ export default function Ticket() {
         .in("id", customerIds)
         .is("deleted_at", null)
         .order("customer_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch employees for assignment
+  const { data: employees } = useQuery({
+    queryKey: ["employees"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*")
+        .order("first_name");
       if (error) throw error;
       return data;
     },
@@ -97,6 +112,8 @@ export default function Ticket() {
           description: formData.description,
           priority: formData.priority,
           contact_info: customer.contact_info,
+          assigned_to: formData.assigned_to ? parseInt(formData.assigned_to) : null,
+          internal_notes: formData.internal_notes || null,
           ticket_id: "", // auto by trigger
         } as any)
         .select()
@@ -129,6 +146,8 @@ export default function Ticket() {
         issue_type: "",
         description: "",
         priority: "medium",
+        assigned_to: "",
+        internal_notes: "",
       });
       setOpen(false);
     },
@@ -255,6 +274,37 @@ export default function Ticket() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label>Assigned To (Optional)</Label>
+              <Select
+                value={formData.assigned_to}
+                onValueChange={(value) => setFormData({ ...formData, assigned_to: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select employee" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees?.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.id.toString()}>
+                      {employee.first_name} {employee.last_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Internal Notes (Optional)</Label>
+              <Textarea
+                value={formData.internal_notes}
+                onChange={(e) =>
+                  setFormData({ ...formData, internal_notes: e.target.value })
+                }
+                placeholder="Internal notes for solving this issue..."
+                rows={3}
+              />
+            </div>
+
             <Button
               onClick={() => createTicketMutation.mutate()}
               disabled={
@@ -277,18 +327,23 @@ export default function Ticket() {
           <TableHeader>
             <TableRow>
               <TableHead>Ticket ID</TableHead>
+              <TableHead>Customer Name</TableHead>
               <TableHead>Customer ID</TableHead>
+              <TableHead>Product Name</TableHead>
               <TableHead>Order ID</TableHead>
               <TableHead>Issue Type</TableHead>
               <TableHead>Priority</TableHead>
+              <TableHead>Date Reported</TableHead>
+              <TableHead>Assigned To</TableHead>
               <TableHead>Description</TableHead>
+              <TableHead>Internal Notes</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {tickets?.map((ticket) => (
-              <TicketRow key={ticket.id} ticket={ticket} customers={customers} />
+              <TicketRow key={ticket.id} ticket={ticket} customers={customers} employees={employees} />
             ))}
           </TableBody>
         </Table>
@@ -297,7 +352,7 @@ export default function Ticket() {
   );
 }
 
-function TicketRow({ ticket, customers }: any) {
+function TicketRow({ ticket, customers, employees }: any) {
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
 
@@ -316,12 +371,39 @@ function TicketRow({ ticket, customers }: any) {
     enabled: !!ticket.customer_id,
   });
 
+  // Fetch product name for this ticket's order
+  const { data: productInfo } = useQuery({
+    queryKey: ["product_for_ticket", ticket.order_id],
+    queryFn: async () => {
+      if (!ticket.order_id) return null;
+      const { data: order, error: orderError } = await supabase
+        .from("sales_orders")
+        .select("product_id")
+        .eq("id", ticket.order_id)
+        .single();
+      
+      if (orderError || !order?.product_id) return null;
+
+      const { data: item, error: itemError } = await supabase
+        .from("items")
+        .select("name")
+        .eq("id", order.product_id)
+        .single();
+      
+      if (itemError) return null;
+      return item;
+    },
+    enabled: !!ticket.order_id,
+  });
+
   const [formData, setFormData] = useState({
     customer_id: ticket.customer_id || "",
     order_id: ticket.order_id || "",
     issue_type: ticket.issue_type || "",
     description: ticket.description || "",
     priority: ticket.priority || "medium",
+    assigned_to: ticket.assigned_to?.toString() || "",
+    internal_notes: ticket.internal_notes || "",
   });
 
   const updateTicketMutation = useMutation({
@@ -334,6 +416,8 @@ function TicketRow({ ticket, customers }: any) {
           issue_type: formData.issue_type,
           description: formData.description,
           priority: formData.priority,
+          assigned_to: formData.assigned_to ? parseInt(formData.assigned_to) : null,
+          internal_notes: formData.internal_notes || null,
         })
         .eq("ticket_id", ticket.ticket_id);
 
@@ -350,14 +434,18 @@ function TicketRow({ ticket, customers }: any) {
   });
 
   const customer = customers?.find((c: any) => c.id === ticket.customer_id);
+  const assignedEmployee = employees?.find((e: any) => e.id === ticket.assigned_to);
+  const isClosed = ticket.status === "closed";
 
   return (
     <>
       <TableRow>
         <TableCell className="font-medium">{ticket.ticket_id}</TableCell>
+        <TableCell>{ticket.customer_name}</TableCell>
         <TableCell>
           {customer?.customer_id || "—"}
         </TableCell>
+        <TableCell>{productInfo?.name || "—"}</TableCell>
         <TableCell>
           {orders?.find((o: any) => o.id === ticket.order_id)?.order_id || "—"}
         </TableCell>
@@ -375,14 +463,24 @@ function TicketRow({ ticket, customers }: any) {
             {ticket.priority}
           </Badge>
         </TableCell>
+        <TableCell>
+          {new Date(ticket.created_at).toLocaleDateString()}
+        </TableCell>
+        <TableCell>
+          {assignedEmployee 
+            ? `${assignedEmployee.first_name} ${assignedEmployee.last_name}`
+            : "—"
+          }
+        </TableCell>
         <TableCell className="max-w-xs truncate">{ticket.description}</TableCell>
+        <TableCell className="max-w-xs truncate">{ticket.internal_notes || "—"}</TableCell>
         <TableCell>
           <Badge variant="outline">{ticket.status || "open"}</Badge>
         </TableCell>
         <TableCell className="space-x-2 whitespace-nowrap">
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" disabled={isClosed}>
                 Edit
               </Button>
             </DialogTrigger>
@@ -477,6 +575,37 @@ function TicketRow({ ticket, customers }: any) {
                     }
                     placeholder="Describe the issue..."
                     rows={4}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Assigned To (Optional)</Label>
+                  <Select
+                    value={formData.assigned_to}
+                    onValueChange={(value) => setFormData({ ...formData, assigned_to: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select employee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {employees?.map((employee: any) => (
+                        <SelectItem key={employee.id} value={employee.id.toString()}>
+                          {employee.first_name} {employee.last_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Internal Notes (Optional)</Label>
+                  <Textarea
+                    value={formData.internal_notes}
+                    onChange={(e) =>
+                      setFormData({ ...formData, internal_notes: e.target.value })
+                    }
+                    placeholder="Internal notes for solving this issue..."
+                    rows={3}
                   />
                 </div>
 
