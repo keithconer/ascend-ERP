@@ -84,18 +84,18 @@ const QuotationManagement: React.FC = () => {
 
         // Create sales order
         const { error: orderError } = await supabase
-          .from('sales_orders')
-          .insert({
-            order_id: orderId,
-            customer_id: customerId,
-            product_id: quotation.product_id,
-            demand_quantity: quotation.quantity,
-            total_amount: quotation.total_amount,
-            payment_terms: 'credit',
-            assigned_staff: quotation.assigned_to,
-            quotation_id: quotation.quotation_id,
-            lead_id: quotation.lead_id
-          });
+        .from('sales_orders')
+        .insert({
+          order_id: orderId,
+          customer_id: customerId,
+          product_id: quotation.product_id,
+          demand_quantity: quotation.quantity,
+          total_amount: quotation.total_amount,
+          payment_terms: 'credit',
+          assigned_to: quotation.assigned_to, // ✅ fixed
+          quotation_id: quotation.quotation_id,
+          lead_id: quotation.lead_id
+        });
 
         if (orderError) throw orderError;
 
