@@ -21,7 +21,6 @@ export default function Issues() {
 
       if (error) throw error;
 
-      // Fetch related tickets and orders
       const ticketIds = [...new Set(issuesData.map((i) => i.ticket_id))];
       const orderIds = [...new Set(issuesData.filter((i) => i.order_id).map((i) => i.order_id))];
 
@@ -34,7 +33,6 @@ export default function Issues() {
         ? await supabase.from("sales_orders").select("*").in("id", orderIds)
         : { data: [] };
 
-      // Combine data
       return issuesData.map((issue) => ({
         ...issue,
         ticket: tickets?.find((t) => t.ticket_id === issue.ticket_id),
@@ -62,42 +60,65 @@ export default function Issues() {
           </TableHeader>
           <TableBody>
             {issues?.map((issue) => (
-              <TableRow key={issue.id}>
-                <TableCell className="font-medium">{issue.issue_id}</TableCell>
-                <TableCell>{issue.ticket_id}</TableCell>
-                <TableCell>{issue.ticket?.customer_name}</TableCell>
-                <TableCell>{issue.order?.order_id || "N/A"}</TableCell>
-                <TableCell>{issue.issue_type}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      issue.status === "resolved" ? "default" : "secondary"
-                    }
-                  >
-                    {issue.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      issue.ticket?.priority === "high"
-                        ? "destructive"
-                        : issue.ticket?.priority === "medium"
-                        ? "default"
-                        : "secondary"
-                    }
-                  >
-                    {issue.ticket?.priority}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {new Date(issue.created_at).toLocaleDateString()}
-                </TableCell>
-              </TableRow>
+              <IssueRow key={issue.id} issue={issue} />
             ))}
           </TableBody>
         </Table>
       </div>
     </div>
+  );
+}
+
+function IssueRow({ issue }: any) {
+  const { data: customer } = useQuery({
+    queryKey: ["customer", issue.customer_id],
+    queryFn: async () => {
+      if (!issue.customer_id) return null;
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("id", issue.customer_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!issue.customer_id,
+  });
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{issue.issue_id}</TableCell>
+      <TableCell>{issue.ticket_id}</TableCell>
+      <TableCell>
+        {customer?.customer_name || issue.ticket?.customer_name || "—"}
+      </TableCell>
+      <TableCell>{issue.order?.order_id || "N/A"}</TableCell>
+      <TableCell>{issue.issue_type}</TableCell>
+      <TableCell>
+        <Badge
+          variant={
+            issue.status === "resolved" ? "default" : "secondary"
+          }
+        >
+          {issue.status}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <Badge
+          variant={
+            issue.ticket?.priority === "high"
+              ? "destructive"
+              : issue.ticket?.priority === "medium"
+              ? "default"
+              : "secondary"
+          }
+        >
+          {issue.ticket?.priority}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        {new Date(issue.created_at).toLocaleDateString()}
+      </TableCell>
+    </TableRow>
   );
 }
