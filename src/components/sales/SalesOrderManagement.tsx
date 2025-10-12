@@ -1,3 +1,5 @@
+'use client';
+
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,13 +8,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Eye, Trash2, FileText } from 'lucide-react';
+import { Eye, Trash2, FileText, Search } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { Input } from '@/components/ui/input';
 
 export default function SalesOrderManagement() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const queryClient = useQueryClient();
 
   const { data: salesOrders, isLoading } = useQuery({
@@ -38,18 +42,16 @@ export default function SalesOrderManagement() {
       const order = salesOrders?.find(o => o.id === orderId);
       if (!order) throw new Error('Order not found');
 
-      // Check customer credit status
       const { data: creditCheck } = await supabase.rpc('check_customer_credit_status', {
         p_customer_id: order.customer_id
       });
 
       if (creditCheck && creditCheck[0]?.has_unpaid) {
-        throw new Error(`Customer has ${creditCheck[0].unpaid_count} unpaid invoice(s). Cannot create new invoice.`);
+        throw new Error(Customer has ${creditCheck[0].unpaid_count} unpaid invoice(s). Cannot create new invoice.);
       }
 
-      // Generate invoice
       const invoiceId = await supabase.rpc('generate_invoice_id').then(res => res.data);
-      
+
       const { error } = await supabase.from('accounts_receivable').insert({
         invoice_id: invoiceId,
         sales_order_id: orderId,
@@ -73,20 +75,17 @@ export default function SalesOrderManagement() {
 
   const deleteMutation = useMutation({
     mutationFn: async (order: any) => {
-      // Delete from sales_orders (cascade to accounts_receivable)
       const { error: orderError } = await supabase
         .from('sales_orders')
         .delete()
         .eq('id', order.id);
-      
+
       if (orderError) throw orderError;
 
-      // Delete from quotations
       if (order.quotation_id) {
         await supabase.from('quotations').delete().eq('quotation_id', order.quotation_id);
       }
 
-      // Delete from leads
       if (order.lead_id) {
         await supabase.from('leads').delete().eq('lead_id', order.lead_id);
       }
@@ -110,10 +109,27 @@ export default function SalesOrderManagement() {
     return <Badge variant={variants[status] || 'secondary'}>{status.toUpperCase()}</Badge>;
   };
 
+  // Filter sales orders
+  const filteredOrders = salesOrders?.filter((order) => {
+    const customerName = order.customers?.customer_name?.toLowerCase() || '';
+    const productName = order.items?.name?.toLowerCase() || '';
+    const term = searchTerm.toLowerCase();
+    return customerName.includes(term) || productName.includes(term);
+  });
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Sales Order Management</CardTitle>
+        <div className="relative mt-4 max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by customer or product..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8"
+          />
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -136,7 +152,7 @@ export default function SalesOrderManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {salesOrders?.map((order) => (
+              {filteredOrders?.map((order) => (
                 <TableRow key={order.id}>
                   <TableCell className="font-medium">{order.order_id}</TableCell>
                   <TableCell>{order.customers?.customer_id}</TableCell>
@@ -148,7 +164,7 @@ export default function SalesOrderManagement() {
                   <TableCell>{format(new Date(order.order_date), 'MM/dd/yyyy')}</TableCell>
                   <TableCell>{getStatusBadge(order.delivery_status)}</TableCell>
                   <TableCell>
-                    {order.employees ? `${order.employees.first_name} ${order.employees.last_name}` : 'N/A'}
+                    {order.employees ? ${order.employees.first_name} ${order.employees.last_name} : 'N/A'}
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
