@@ -54,6 +54,20 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({
     setAvailableStock(totalStock);
   };
 
+  // Helper to validate customer name (only letters and spaces)
+  const validateCustomerName = (name: string) => {
+    const regex = /^[A-Za-z\s]*$/;
+    return regex.test(name);
+  };
+
+  const handleCustomerNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target.value;
+    if (validateCustomerName(input)) {
+      setCustomerName(input);
+    }
+    // else ignore invalid chars, no update to state
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -130,9 +144,10 @@ const AddLeadForm: React.FC<AddLeadFormProps> = ({
         <Input
           id="customerName"
           value={customerName}
-          onChange={(e) => setCustomerName(e.target.value)}
+          onChange={handleCustomerNameChange}
           placeholder="Enter customer name"
           required
+          autoComplete="off"
         />
       </div>
 
