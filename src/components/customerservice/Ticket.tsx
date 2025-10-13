@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 export default function Ticket() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({
     customer_id: "",
     order_id: "",
@@ -170,8 +171,25 @@ export default function Ticket() {
     },
   });
 
+  const filteredTickets = tickets?.filter((ticket) => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      ticket.ticket_id?.toLowerCase().includes(searchLower) ||
+      ticket.customer_name?.toLowerCase().includes(searchLower)
+    );
+  });
+
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <input
+          type="text"
+          placeholder="Search by Ticket ID or Customer Name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        />
+      </div>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button>Create Ticket</Button>
@@ -342,7 +360,7 @@ export default function Ticket() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tickets?.map((ticket) => (
+            {filteredTickets?.map((ticket) => (
               <TicketRow key={ticket.id} ticket={ticket} customers={customers} employees={employees} />
             ))}
           </TableBody>

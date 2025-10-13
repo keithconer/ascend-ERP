@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function Solutions() {
   const queryClient = useQueryClient();
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedIssue, setSelectedIssue] = useState("");
   const [solutionType, setSolutionType] = useState("");
   const [quantity, setQuantity] = useState(1);
@@ -125,6 +126,14 @@ export default function Solutions() {
     },
   });
 
+  const filteredSolutions = solutions?.filter((solution) => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      solution.solution_id?.toLowerCase().includes(searchLower) ||
+      solution.solution_type?.toLowerCase().includes(searchLower)
+    );
+  });
+
   return (
     <div className="space-y-6">
       <div className="space-y-4 p-6 bg-card rounded-lg border">
@@ -184,6 +193,13 @@ export default function Solutions() {
 
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Solutions History</h3>
+        <input
+          type="text"
+          placeholder="Search by Solution ID, Customer Name, or Solution Type..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        />
         <div className="border rounded-lg">
           <Table>
             <TableHeader>
@@ -199,7 +215,7 @@ export default function Solutions() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {solutions?.map((solution) => (
+              {filteredSolutions?.map((solution) => (
                 <SolutionRow key={solution.id} solution={solution} />
               ))}
             </TableBody>
