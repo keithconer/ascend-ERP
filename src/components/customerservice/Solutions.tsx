@@ -195,7 +195,7 @@ export default function Solutions() {
         <h3 className="text-lg font-semibold">Solutions History</h3>
         <input
           type="text"
-          placeholder="Search by Solution ID, Customer Name, or Solution Type..."
+          placeholder="Search by Solution ID, or Solution Type..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
