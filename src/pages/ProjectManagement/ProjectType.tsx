@@ -1,5 +1,4 @@
 // src/pages/ProjectManagement/ProjectType.tsx
-
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -34,14 +33,14 @@ export default function ProjectType() {
 
   const handleAdd = async (newType: { type_name: string; description: string }) => {
     try {
-        const inserted = await addProjectType(newType);
-        setProjectTypes((prev) => [...prev, inserted]);
-        setShowModal(false);
+      const inserted = await addProjectType(newType);
+      setProjectTypes((prev) => [...prev, inserted]);
+      setShowModal(false);
     } catch (err) {
-        console.error("Error adding project type:", err);
-        alert("Failed to add project type. Please try again.");
+      console.error("Error adding project type:", err);
+      alert("Failed to add project type. Please try again.");
     }
-  };    
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -91,9 +90,15 @@ export default function ProjectType() {
               </TableHeader>
               <TableBody>
                 {projectTypes.map((type) => (
-                  <TableRow key={type.project_type_id}>
+                  <TableRow
+                    key={type.project_type_id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => navigate(`/projects/project-type/${type.project_type_id}`)}
+                  >
                     <TableCell>{type.project_type_id}</TableCell>
-                    <TableCell className="font-medium">{type.type_name}</TableCell>
+                    <TableCell className="font-medium text-primary hover:underline">
+                      {type.type_name}
+                    </TableCell>
                     <TableCell>{type.description}</TableCell>
                   </TableRow>
                 ))}

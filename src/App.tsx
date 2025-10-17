@@ -18,6 +18,8 @@ import { ERPLayout } from "@/components/erp/ERPLayout";
 // Imports for the Project Management Module
 import ProjectManagementPage from "./pages/ProjectManagement/ProjectManagementPage";
 import ProjectType from "./pages/ProjectManagement/ProjectType";
+import ProjectTypeDetail from "./pages/ProjectManagement/ProjectTypeDetail";
+import Projects from "./pages/ProjectManagement/Projects";
 
 const queryClient = new QueryClient();
 
@@ -91,6 +93,14 @@ const App = () => (
             path="/projects/project-type" 
             element={<ProjectType />}
           /> 
+          <Route
+            path="/projects/project-type/:id" 
+            element={<ProjectTypeDetail />}
+          />
+          <Route
+            path="/projects/:id" 
+            element={<Projects />}
+          />
           {/* End of Project Management Routes */}
 
           <Route path="*" element={<NotFound />} />
