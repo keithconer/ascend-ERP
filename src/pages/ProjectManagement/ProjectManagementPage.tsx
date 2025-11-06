@@ -1,30 +1,37 @@
-// src/pages/ProjectManagement/ProjectManagementPage.tsx
+import React, { useState } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import ProjectsTab from "@/components/ProjectManagement/ProjectsTab";
+import TasksTab from "@/components/ProjectManagement/TasksTab";
+import GanttChartTab from "@/components/ProjectManagement/GanttChartTab";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import ProjectsDashboard from '@/components/ProjectManagement/ProjectsDashboard';
-import Shortcuts from '@/components/ProjectManagement/Shortcuts';
-import ReportsAndMasters from '@/components/ProjectManagement/ReportsAndMasters';
+const ProjectManagementPage = () => {
+  const [activeTab, setActiveTab] = useState("projects");
 
-export default function ProjectManagementPage() {
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Project Management</h1>
-        <p className="text-muted-foreground">
-          Oversee project progress, assign tasks, monitor teams, and evaluate outcomes
-        </p>
-      </div>
+    <div className="p-6">
+      <h1 className="text-2xl font-semibold mb-4">Project Management</h1>
 
-      {/* Dashboard Section */}
-      <ProjectsDashboard />
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="mb-6">
+          <TabsTrigger value="projects">Projects</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="gantt">Gantt Chart</TabsTrigger>
+        </TabsList>
 
-      {/* Shortcuts Section */}
-      <Shortcuts />
+        <TabsContent value="projects">
+          <ProjectsTab />
+        </TabsContent>
 
-      {/* Reports and Masters Section */}
-      <ReportsAndMasters />
+        <TabsContent value="tasks">
+          <TasksTab />
+        </TabsContent>
 
+        <TabsContent value="gantt">
+          <GanttChartTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
-}
+};
+
+export default ProjectManagementPage;
