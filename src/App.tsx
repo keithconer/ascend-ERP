@@ -15,6 +15,9 @@ import SalesPage from "./pages/sales/SalesPage";
 import CustomerServicePage from "./pages/customerservice/CustomerServicePage";
 import { ERPLayout } from "@/components/erp/ERPLayout";
 
+// Imports for the Project Management Module
+import ProjectManagementPage from "./pages/ProjectManagement/ProjectManagementPage";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -73,6 +76,18 @@ const App = () => (
               </ERPLayout>
             }
           />
+
+          {/* Project Management Routes */}
+          <Route
+            path="/projects" 
+            element={
+              <ERPLayout>
+                <ProjectManagementPage />  
+              </ERPLayout>
+            }
+          />
+          {/* End of Project Management Routes */}
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
