@@ -13,6 +13,7 @@ import FinanceManagementPage from "./pages/finance/FinanceManagement";
 import NotFound from "./pages/NotFound";
 import SalesPage from "./pages/sales/SalesPage";
 import CustomerServicePage from "./pages/customerservice/CustomerServicePage";
+import SupplyChainPage from "./pages/supplyChain/SupplyChainPage";
 import { ERPLayout } from "@/components/erp/ERPLayout";
 
 // Imports for the Project Management Module
@@ -77,7 +78,7 @@ const App = () => (
             }
           />
 
-          {/* Project Management Routes */}
+         
           <Route
             path="/projects" 
             element={
@@ -86,7 +87,21 @@ const App = () => (
               </ERPLayout>
             }
           />
-          {/* End of Project Management Routes */}
+
+
+  <Route
+            path="/supply-chain" 
+            element={
+              <ERPLayout>
+                <SupplyChainPage />  
+              </ERPLayout>
+            }
+          />
+           
+
+        
+
+
 
           <Route path="*" element={<NotFound />} />
         </Routes>
