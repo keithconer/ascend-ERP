@@ -43,7 +43,7 @@ export const InventorySummary = () => {
       }
     },
     staleTime: 5 * 60 * 1000,  // Cache data for 5 minutes
-    cacheTime: 10 * 60 * 1000, // Cache time of 10 minutes
+    gcTime: 10 * 60 * 1000, // Garbage collection time of 10 minutes
   });
 
   // Handle search filter logic

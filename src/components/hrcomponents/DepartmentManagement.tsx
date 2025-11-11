@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 
 type Department = {
-  id: string;
+  id: number;
   name: string;
 };
 
@@ -32,7 +32,7 @@ const DepartmentManagement = () => {
 
   // Delete states
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deleteDeptId, setDeleteDeptId] = useState<string | null>(null);
+  const [deleteDeptId, setDeleteDeptId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Fetch departments
@@ -62,19 +62,16 @@ const DepartmentManagement = () => {
   const handleAddDepartment = async () => {
     if (!newDeptName.trim()) return;
 
-    const randomID = Math.floor(Math.random() * 100000).toString();
-
     const { error } = await supabase
       .from("departments")
-      .insert([{ id: randomID, name: newDeptName.trim() }]);
+      .insert([{ name: newDeptName.trim() }])
+      .select()
+      .single();
 
     if (error) {
       console.error("Error adding department:", error);
     } else {
-      setDepartments((prev) => [
-        ...prev,
-        { id: randomID, name: newDeptName.trim() },
-      ]);
+      await fetchDepartments();
       setIsAddModalOpen(false);
       setNewDeptName("");
     }

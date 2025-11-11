@@ -25,12 +25,12 @@ const QuotationManagement: React.FC = () => {
       const [quotationsData, productsData, employeesData] = await Promise.all([
         supabase.from('quotations').select('*').order('created_at', { ascending: false }),
         supabase.from('items').select('id, name, unit_price'),
-        supabase.from('employees').select('id, first_name, last_name'),
+        supabase.from('employees').select('id, first_name, last_name, position'),
       ]);
 
       setQuotations(quotationsData.data || []);
       setProducts(productsData.data || []);
-      setEmployees(employeesData.data || []);
+      setEmployees((employeesData.data || []).map(emp => ({ ...emp, position: emp.position || '' })));
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({

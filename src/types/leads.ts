@@ -27,13 +27,22 @@ export type Employee = {
   first_name: string;
   last_name: string;
   middle_initial?: string;
-  department_id?: string;
+  department_id?: number;
   position: string;
   phone_number?: string;
   hire_date?: string;
   employee_type?: string;
   rate_per_day?: number;
   work_days_per_week?: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type Department = {
+  id: number;
+  name: string;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type Inventory = {

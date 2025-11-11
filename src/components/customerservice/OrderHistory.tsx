@@ -25,7 +25,7 @@ type Order = {
   payment_terms: string;
   order_date: string;
   delivery_status: string;
-  assigned_staff: number | null;
+  assigned_to: number | null;
   customers: {
     customer_id: string;
     customer_name: string;

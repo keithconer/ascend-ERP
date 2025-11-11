@@ -35,14 +35,14 @@ const LeadsManagement: React.FC = () => {
       const [leadsData, productsData, employeesData, inventoryData, quotationsData] = await Promise.all([
         supabase.from('leads').select('*'),
         supabase.from('items').select('id, name, unit_price'),
-        supabase.from('employees').select('id, first_name, last_name'),
+        supabase.from('employees').select('id, first_name, last_name, position'),
         supabase.from('inventory').select('item_id, warehouse_id, quantity, available_quantity'),
         supabase.from('quotations').select('*'),
       ]);
 
-      setLeads(leadsData.data || []);
+      setLeads((leadsData.data || []) as any[]);
       setProducts(productsData.data || []);
-      setEmployees(employeesData.data || []);
+      setEmployees((employeesData.data || []).map(emp => ({ ...emp, position: emp.position || '' })));
       setInventory(inventoryData.data || []);
       setQuotations(quotationsData.data || []);
     } catch (error) {

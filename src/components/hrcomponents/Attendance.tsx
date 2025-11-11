@@ -20,17 +20,17 @@ import { Label } from "@/components/ui/label"
 type AttendanceStatus = "present" | "absent" | "late" | "leave" | "clocked_in"
 
 interface Employee {
-  id: string
+  id: number
   first_name: string
   last_name: string
   middle_initial: string
-  department_id: string
+  department_id: number
   position: string
 }
 
 interface AttendanceRecord {
-  id: string
-  employee_id: string
+  id: number
+  employee_id: number
   date: string
   time_in: string
   time_out: string
@@ -535,15 +535,15 @@ const Attendance = () => {
             <div>
               <Label>Employee</Label>
               <Select
-                value={selectedEmployee?.id}
-                onValueChange={(value) => setSelectedEmployee(employees.find((emp) => emp.id === value) || null)}
+                value={selectedEmployee?.id.toString()}
+                onValueChange={(value) => setSelectedEmployee(employees.find((emp) => emp.id.toString() === value) || null)}
               >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select Employee" />
                 </SelectTrigger>
                 <SelectContent>
                   {employees.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>
+                    <SelectItem key={emp.id} value={emp.id.toString()}>
                       {emp.first_name} {emp.last_name}
                     </SelectItem>
                   ))}

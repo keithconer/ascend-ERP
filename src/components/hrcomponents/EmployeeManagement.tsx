@@ -10,12 +10,12 @@ import AddEmployeeModal from "./AddEmployeeModal"
 import EditEmployeeModal from "./EditEmployeeModal"
 
 type Employee = {
-  id: string
+  id: number
   created_at: string | null
   first_name: string
   last_name: string
   middle_initial?: string | null
-  department_id: string
+  department_id: number | null
   position: string
   updated_at: string | null
   phone_number?: string | null
@@ -26,7 +26,7 @@ type Employee = {
 }
 
 type Department = {
-  id: string
+  id: number
   name: string
   created_at: string | null
   updated_at: string | null
@@ -46,14 +46,14 @@ const EmployeeManagement = () => {
   // Fetch employees and departments on mount
   useEffect(() => {
     const fetchData = async () => {
-      const { data: employeeData, error: employeeError } = await supabase.from<Employee>("employees").select("*")
+      const { data: employeeData, error: employeeError } = await supabase.from("employees").select("*")
       if (employeeError) {
         console.error("Error fetching employees:", employeeError)
       } else {
         setEmployees(employeeData || [])
       }
 
-      const { data: departmentData, error: departmentError } = await supabase.from<Department>("departments").select("*")
+      const { data: departmentData, error: departmentError } = await supabase.from("departments").select("*")
       if (departmentError) {
         console.error("Error fetching departments:", departmentError)
       } else {

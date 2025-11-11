@@ -62,10 +62,14 @@ const ProjectsTab = () => {
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: fetchProjects,
-    onSuccess: (data) => {
-      setNewProjectCode(generateProjectCode(data));
-    },
   });
+
+  // Update project code when projects change
+  React.useEffect(() => {
+    if (projects) {
+      setNewProjectCode(generateProjectCode(projects));
+    }
+  }, [projects]);
 
   const addProjectMutation = useMutation({
     mutationFn: async (project: any) => {
@@ -111,13 +115,15 @@ const ProjectsTab = () => {
     }
   };
 
-  const filteredProjects = projects.filter((proj: any) =>
-    proj.project_name.toLowerCase().includes(search.toLowerCase())
+  const filteredProjects = (projects || []).filter((proj: any) =>
+    proj.project_name?.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleAddProjectClick = () => {
     setEditProject(null);
-    setNewProjectCode(generateProjectCode(projects));
+    if (projects) {
+      setNewProjectCode(generateProjectCode(projects));
+    }
     setIsDialogOpen(true);
   };
 

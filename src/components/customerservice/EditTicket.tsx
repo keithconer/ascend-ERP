@@ -46,7 +46,7 @@ export default function EditTicket({
     order_id: ticket.order_id ?? '',
     issue_type: ticket.issue_type ?? '',
     description: ticket.description ?? '',
-    priority_level: ticket.priority_level ?? '',
+    priority: ticket.priority ?? 'medium',
     assigned_to: ticket.assigned_to?.toString() ?? '',
     internal_notes: ticket.internal_notes ?? '',
     solution: ticket.solution ?? '',
@@ -71,7 +71,7 @@ export default function EditTicket({
           order_id: form.order_id || null,
           issue_type: form.issue_type,
           description: form.description,
-          priority_level: form.priority_level,
+          priority: form.priority,
           assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
           internal_notes: form.internal_notes,
           solution: form.solution || '-',
@@ -148,13 +148,13 @@ export default function EditTicket({
           <div>
             <label className="block text-sm font-medium mb-1">Priority Level</label>
             <select
-              value={form.priority_level}
-              onChange={(e) => setForm((f) => ({ ...f, priority_level: e.target.value }))}
+              value={form.priority}
+              onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
               className="w-full border rounded px-3 py-2"
             >
               <option value="">Select Priority</option>
               {PRIORITY_LEVELS.map((level) => (
-                <option key={level} value={level}>
+                <option key={level.toLowerCase()} value={level.toLowerCase()}>
                   {level}
                 </option>
               ))}

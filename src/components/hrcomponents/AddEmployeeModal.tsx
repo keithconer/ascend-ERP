@@ -118,7 +118,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
         first_name: firstName,
         last_name: lastName,
         middle_initial: middleInitial,
-        department_id: String(departmentId),
+        department_id: Number(departmentId),
         position,
         phone_number: phoneNumber,
         hire_date: hireDate,
@@ -230,7 +230,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
               </SelectTrigger>
               <SelectContent>
                 {departments.map((dept) => (
-                  <SelectItem key={dept.id} value={dept.id}>
+                  <SelectItem key={dept.id} value={dept.id.toString()}>
                     {dept.name}
                   </SelectItem>
                 ))}
