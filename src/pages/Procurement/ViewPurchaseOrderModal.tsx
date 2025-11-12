@@ -8,6 +8,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -41,6 +42,7 @@ export default function ViewPurchaseOrderModal({
   const [items, setItems] = useState<ItemRow[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
+  const [status, setStatus] = useState(purchaseOrder?.status || "pending");
   const [loading, setLoading] = useState(false);
 
   const { toast } = useToast();
@@ -49,6 +51,7 @@ export default function ViewPurchaseOrderModal({
     if (open && purchaseOrder) {
       fetchItems();
       fetchWarehouses();
+      setStatus(purchaseOrder.status);
     } else {
       setItems([]);
       setWarehouses([]);
@@ -136,6 +139,30 @@ export default function ViewPurchaseOrderModal({
     }
   }
 
+  async function handleStatusUpdate() {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("purchase_orders")
+        .update({ status })
+        .eq("id", purchaseOrder.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Status updated successfully",
+        description: status === "delayed" ? "Goods receipt status has also been updated to delayed" : undefined,
+      });
+
+      onUpdated();
+      onClose();
+    } catch (error: any) {
+      toast({ title: "Failed to update status", description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const total = items.reduce((acc, it) => {
     const price = it.price !== 0 ? it.price : it.item_id.unit_price ?? 0;
     return acc + price * it.quantity;
@@ -184,24 +211,57 @@ export default function ViewPurchaseOrderModal({
           </div>
 
           {purchaseOrder.status.toLowerCase().trim() !== "approved" && (
-            <div>
-              <label htmlFor="warehouse-select" className="block font-semibold mb-1">
-                Select Warehouse
-              </label>
-              <select
-                id="warehouse-select"
-                className="w-full border rounded px-3 py-2"
-                value={selectedWarehouseId || ""}
-                onChange={(e) => setSelectedWarehouseId(e.target.value)}
-              >
-                {warehouses.length === 0 && <option value="">No warehouses available</option>}
-                {warehouses.map((wh) => (
-                  <option key={wh.id} value={wh.id}>
-                    {wh.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div>
+                <label htmlFor="warehouse-select" className="block font-semibold mb-1">
+                  Select Warehouse
+                </label>
+                <select
+                  id="warehouse-select"
+                  className="w-full border rounded px-3 py-2"
+                  value={selectedWarehouseId || ""}
+                  onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                >
+                  {warehouses.length === 0 && <option value="">No warehouses available</option>}
+                  {warehouses.map((wh) => (
+                    <option key={wh.id} value={wh.id}>
+                      {wh.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="status-select" className="block font-semibold mb-1">
+                  Update Status
+                </label>
+                <div className="flex items-center gap-2">
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="delayed">Delayed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    onClick={handleStatusUpdate}
+                    disabled={loading || status === purchaseOrder.status}
+                    size="sm"
+                  >
+                    Update
+                  </Button>
+                </div>
+                {status === "delayed" && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Note: Setting to "delayed" will also update goods receipt status
+                  </p>
+                )}
+              </div>
+            </>
           )}
         </div>
 

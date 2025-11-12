@@ -27,7 +27,7 @@ interface Item {
   price: number;
 }
 
-interface PurchaseOrder {
+export interface PurchaseOrder {
   id: string;
   po_number: string;
   requisition_id: string | null;
@@ -174,7 +174,6 @@ export default function PurchaseOrderTable() {
 
       toast({
         title: "Purchase order and requisition deleted",
-        variant: "success",
       });
 
       fetchPurchaseOrders();

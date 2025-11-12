@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -26,27 +26,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Search, Plus, Edit, Eye } from "lucide-react";
-import { format } from "date-fns";
+import { Search, Plus, Edit } from "lucide-react";
 
 export default function SupplyChainPlanning() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [formData, setFormData] = useState({
-    product_id: "",
-    supplier_id: "",
+    po_number: "",
+    requisition_id: "",
     warehouse_id: "",
     forecast_demand: "",
     plan_status: "pending",
   });
+  const [autoFilledData, setAutoFilledData] = useState({
+    product_name: "",
+    supplier_name: "",
+    current_stock: "",
+    status: "",
+  });
 
-  // Fetch supply chain plans with related data
+  // Fetch supply chain plans with related data and current stock
   const { data: plans, isLoading } = useQuery({
     queryKey: ["supply_chain_plans"],
     queryFn: async () => {
@@ -61,38 +65,63 @@ export default function SupplyChainPlanning() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data;
+
+      // Fetch current stock and forecast demand for each plan
+      const enrichedPlans = await Promise.all(
+        (data || []).map(async (plan) => {
+          // Get current stock (available_quantity)
+          const { data: inventoryData } = await supabase
+            .from("inventory")
+            .select("available_quantity")
+            .eq("item_id", plan.product_id)
+            .maybeSingle();
+
+          // Get recommended order qty from demand forecasting
+          const { data: forecastData } = await supabase
+            .from("demand_forecasting")
+            .select("recommend_order_qty")
+            .eq("product_id", plan.product_id)
+            .maybeSingle();
+
+          return {
+            ...plan,
+            current_stock: inventoryData?.available_quantity ?? 0,
+            forecast_demand_value: forecastData?.recommend_order_qty ?? "-",
+          };
+        })
+      );
+
+      return enrichedPlans;
     },
   });
 
-  // Fetch products from inventory
-  const { data: products } = useQuery({
-    queryKey: ["inventory_items"],
+  // Fetch purchase orders
+  const { data: purchaseOrders } = useQuery({
+    queryKey: ["purchase_orders_list"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("items")
+        .from("purchase_orders")
         .select("*")
-        .eq("is_active", true)
-        .order("name");
+        .order("order_date", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
-  // Fetch suppliers from procurement
-  const { data: suppliers } = useQuery({
-    queryKey: ["suppliers"],
+  // Fetch requisitions
+  const { data: requisitions } = useQuery({
+    queryKey: ["purchase_requisitions_list"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("suppliers")
+        .from("purchase_requisitions")
         .select("*")
-        .order("name");
+        .order("request_date", { ascending: false});
       if (error) throw error;
       return data;
     },
   });
 
-  // Fetch warehouses from inventory
+  // Fetch warehouses
   const { data: warehouses } = useQuery({
     queryKey: ["warehouses"],
     queryFn: async () => {
@@ -106,60 +135,78 @@ export default function SupplyChainPlanning() {
     },
   });
 
-  // Get current stock for selected product
-  const { data: currentStock } = useQuery({
-    queryKey: ["current_stock", formData.product_id],
-    queryFn: async () => {
-      if (!formData.product_id) return null;
+  // Auto-populate data when PO number is selected
+  useEffect(() => {
+    const fetchPODetails = async () => {
+      if (!formData.po_number) return;
 
-      const { data, error } = await supabase
-        .from("inventory")
-        .select("quantity")
-        .eq("item_id", formData.product_id)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data?.quantity || 0;
-    },
-    enabled: !!formData.product_id,
-  });
-
-  // Get estimated delivery date from procurement
-  const { data: estimatedDelivery } = useQuery({
-    queryKey: ["estimated_delivery", formData.supplier_id],
-    queryFn: async () => {
-      if (!formData.supplier_id) return null;
-
-      const { data, error } = await supabase
+      const { data: poData, error: poError } = await supabase
         .from("purchase_orders")
-        .select("order_date")
-        .eq("supplier_id", formData.supplier_id)
-        .order("order_date", { ascending: false })
-        .limit(1)
+        .select(`
+          *,
+          suppliers (name),
+          purchase_order_items (
+            items (id, name)
+          )
+        `)
+        .eq("po_number", formData.po_number)
+        .single();
+
+      if (poError || !poData) return;
+
+      const productId = poData.purchase_order_items?.[0]?.items?.id;
+      const productName = poData.purchase_order_items?.[0]?.items?.name || "";
+      const supplierName = poData.suppliers?.name || "";
+
+      // Get current stock
+      const { data: inventoryData } = await supabase
+        .from("inventory")
+        .select("available_quantity")
+        .eq("item_id", productId)
         .maybeSingle();
 
-      if (error) throw error;
-      
-      if (data?.order_date) {
-        const orderDate = new Date(data.order_date);
-        const estimatedDate = new Date(orderDate);
-        estimatedDate.setDate(estimatedDate.getDate() + 7); // Add 7 days as estimate
-        return estimatedDate.toISOString().split('T')[0];
+      setAutoFilledData({
+        product_name: productName,
+        supplier_name: supplierName,
+        current_stock: inventoryData?.available_quantity?.toString() || "0",
+        status: poData.status,
+      });
+
+      // Set requisition ID if exists
+      if (poData.requisition_id) {
+        setFormData(prev => ({ ...prev, requisition_id: poData.requisition_id }));
       }
-      return null;
-    },
-    enabled: !!formData.supplier_id,
-  });
+    };
+
+    fetchPODetails();
+  }, [formData.po_number]);
 
   // Create supply chain plan mutation
   const createPlanMutation = useMutation({
     mutationFn: async (data: any) => {
+      // Get product ID from PO
+      const { data: poData } = await supabase
+        .from("purchase_orders")
+        .select(`
+          purchase_order_items (
+            items (id)
+          ),
+          supplier_id
+        `)
+        .eq("po_number", data.po_number)
+        .single();
+
+      const productId = poData?.purchase_order_items?.[0]?.items?.id;
+      const supplierId = poData?.supplier_id;
+
       const { error } = await supabase
         .from("supply_chain_plans")
         .insert([{
           plan_id: "", // Auto-generated by trigger
-          product_id: data.product_id,
-          supplier_id: data.supplier_id,
+          po_number: data.po_number,
+          requisition_id: data.requisition_id || null,
+          product_id: productId,
+          supplier_id: supplierId,
           warehouse_id: data.warehouse_id,
           forecast_demand: parseInt(data.forecast_demand),
           plan_status: data.plan_status,
@@ -184,11 +231,9 @@ export default function SupplyChainPlanning() {
       const { error } = await supabase
         .from("supply_chain_plans")
         .update({
-          product_id: data.product_id,
-          supplier_id: data.supplier_id,
+          plan_status: data.plan_status,
           warehouse_id: data.warehouse_id,
           forecast_demand: parseInt(data.forecast_demand),
-          plan_status: data.plan_status,
           updated_at: new Date().toISOString(),
         })
         .eq("id", id);
@@ -198,6 +243,8 @@ export default function SupplyChainPlanning() {
     onSuccess: () => {
       toast.success("Supply chain plan updated successfully");
       queryClient.invalidateQueries({ queryKey: ["supply_chain_plans"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase_orders"] });
+      queryClient.invalidateQueries({ queryKey: ["goods_receipts"] });
       setIsAddDialogOpen(false);
       setSelectedPlan(null);
       resetForm();
@@ -209,18 +256,24 @@ export default function SupplyChainPlanning() {
 
   const resetForm = () => {
     setFormData({
-      product_id: "",
-      supplier_id: "",
+      po_number: "",
+      requisition_id: "",
       warehouse_id: "",
       forecast_demand: "",
       plan_status: "pending",
+    });
+    setAutoFilledData({
+      product_name: "",
+      supplier_name: "",
+      current_stock: "",
+      status: "",
     });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.product_id || !formData.supplier_id || !formData.warehouse_id || !formData.forecast_demand) {
+    if (!formData.po_number || !formData.warehouse_id || !formData.forecast_demand) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -235,8 +288,8 @@ export default function SupplyChainPlanning() {
   const handleEdit = (plan: any) => {
     setSelectedPlan(plan);
     setFormData({
-      product_id: plan.product_id,
-      supplier_id: plan.supplier_id,
+      po_number: plan.po_number || "",
+      requisition_id: plan.requisition_id || "",
       warehouse_id: plan.warehouse_id,
       forecast_demand: plan.forecast_demand.toString(),
       plan_status: plan.plan_status,
@@ -248,8 +301,8 @@ export default function SupplyChainPlanning() {
     const search = searchTerm.toLowerCase();
     return (
       plan.plan_id?.toLowerCase().includes(search) ||
-      plan.items?.name?.toLowerCase().includes(search) ||
-      plan.suppliers?.name?.toLowerCase().includes(search)
+      plan.po_number?.toLowerCase().includes(search) ||
+      plan.items?.name?.toLowerCase().includes(search)
     );
   });
 
@@ -273,7 +326,7 @@ export default function SupplyChainPlanning() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Supply Chain Planning</h2>
           <p className="text-sm text-muted-foreground">
-            Manage supply chain plans with live data from Inventory and Procurement
+            Manage supply chain plans linked to procurement orders
           </p>
         </div>
         <Button onClick={() => {
@@ -290,7 +343,7 @@ export default function SupplyChainPlanning() {
       <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search by Plan ID, Product, or Supplier..."
+          placeholder="Search by Plan ID, PO Number, or Product..."
           className="pl-9"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -305,7 +358,8 @@ export default function SupplyChainPlanning() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Plan ID</TableHead>
-                  <TableHead>Product</TableHead>
+                  <TableHead>PO Number</TableHead>
+                  <TableHead>Requisition ID</TableHead>
                   <TableHead>Current Stock</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead>Status</TableHead>
@@ -317,7 +371,7 @@ export default function SupplyChainPlanning() {
               <TableBody>
                 {filteredPlans.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       No supply chain plans found. Create your first plan to get started.
                     </TableCell>
                   </TableRow>
@@ -325,42 +379,21 @@ export default function SupplyChainPlanning() {
                   filteredPlans.map((plan) => (
                     <TableRow key={plan.id}>
                       <TableCell className="font-medium">{plan.plan_id}</TableCell>
-                      <TableCell>{plan.items?.name || "—"}</TableCell>
-                      <TableCell>
-                        {(() => {
-                          // Get current stock from inventory
-                          const stockQuery = supabase
-                            .from("inventory")
-                            .select("quantity")
-                            .eq("item_id", plan.product_id)
-                            .maybeSingle();
-                          return "Loading...";
-                        })()}
-                      </TableCell>
+                      <TableCell>{plan.po_number || "—"}</TableCell>
+                      <TableCell>{plan.requisition_id || "—"}</TableCell>
+                      <TableCell>{plan.current_stock} units</TableCell>
                       <TableCell>{plan.suppliers?.name || "—"}</TableCell>
                       <TableCell>{getStatusBadge(plan.plan_status)}</TableCell>
                       <TableCell>{plan.warehouses?.name || "—"}</TableCell>
-                      <TableCell>{plan.forecast_demand} units</TableCell>
+                      <TableCell>{plan.forecast_demand_value !== "-" ? `${plan.forecast_demand_value} units` : "—"}</TableCell>
                       <TableCell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedPlan(plan);
-                              setIsViewDialogOpen(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(plan)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEdit(plan)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -379,73 +412,76 @@ export default function SupplyChainPlanning() {
               {selectedPlan ? "Edit Supply Plan" : "Add New Supply Plan"}
             </DialogTitle>
             <DialogDescription>
-              Create a new supply chain plan by selecting product, supplier, and warehouse.
+              Select a purchase order to auto-populate product and supplier details
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              {/* Product */}
+              {/* PO Number */}
               <div className="space-y-2">
-                <Label>Product *</Label>
+                <Label>PO Number *</Label>
                 <Select
-                  value={formData.product_id}
+                  value={formData.po_number}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, product_id: value })
+                    setFormData({ ...formData, po_number: value })
                   }
+                  disabled={!!selectedPlan}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select product" />
+                    <SelectValue placeholder="Select PO number" />
                   </SelectTrigger>
                   <SelectContent>
-                    {products?.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name} ({product.sku})
+                    {purchaseOrders?.map((po) => (
+                      <SelectItem key={po.id} value={po.po_number || po.id}>
+                        {po.po_number}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Requisition No (Auto-populated) */}
+              <div className="space-y-2">
+                <Label>Requisition No.</Label>
+                <Input
+                  value={formData.requisition_id}
+                  disabled
+                  className="bg-muted"
+                  placeholder="Auto-filled from PO"
+                />
+              </div>
+
+              {/* Product Name (Auto Display) */}
+              <div className="space-y-2">
+                <Label>Product Name</Label>
+                <Input
+                  value={autoFilledData.product_name}
+                  disabled
+                  className="bg-muted"
+                  placeholder="Select PO number"
+                />
               </div>
 
               {/* Current Stock (Auto Display) */}
               <div className="space-y-2">
                 <Label>Current Stock</Label>
                 <Input
-                  value={currentStock !== null ? `${currentStock} units` : "Select product"}
+                  value={autoFilledData.current_stock ? `${autoFilledData.current_stock} units` : ""}
                   disabled
                   className="bg-muted"
+                  placeholder="Select PO number"
                 />
               </div>
 
-              {/* Supplier */}
+              {/* Supplier (Auto Display) */}
               <div className="space-y-2">
-                <Label>Supplier *</Label>
-                <Select
-                  value={formData.supplier_id}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, supplier_id: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select supplier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers?.map((supplier) => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Estimated Delivery Date */}
-              <div className="space-y-2">
-                <Label>Estimated Delivery Date</Label>
+                <Label>Supplier</Label>
                 <Input
-                  value={estimatedDelivery || "Select supplier"}
+                  value={autoFilledData.supplier_name}
                   disabled
                   className="bg-muted"
+                  placeholder="Select PO number"
                 />
               </div>
 
@@ -485,7 +521,7 @@ export default function SupplyChainPlanning() {
               </div>
 
               {/* Plan Status */}
-              <div className="space-y-2 col-span-2">
+              <div className="space-y-2">
                 <Label>Plan Status *</Label>
                 <Select
                   value={formData.plan_status}
@@ -502,6 +538,9 @@ export default function SupplyChainPlanning() {
                     <SelectItem value="delayed">Delayed</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Setting status to "delayed" will update PO and GR status
+                </p>
               </div>
             </div>
 
@@ -525,58 +564,6 @@ export default function SupplyChainPlanning() {
               </Button>
             </div>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Supply Plan Details</DialogTitle>
-          </DialogHeader>
-
-          {selectedPlan && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Plan ID</p>
-                  <p className="text-lg font-semibold">{selectedPlan.plan_id}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Product</p>
-                  <p className="text-lg">{selectedPlan.items?.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Supplier</p>
-                  <p className="text-lg">{selectedPlan.suppliers?.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Warehouse</p>
-                  <p className="text-lg">{selectedPlan.warehouses?.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Forecast Demand</p>
-                  <p className="text-lg">{selectedPlan.forecast_demand} units</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Status</p>
-                  <div className="mt-1">{getStatusBadge(selectedPlan.plan_status)}</div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Created At</p>
-                  <p className="text-lg">
-                    {format(new Date(selectedPlan.created_at), "MMM dd, yyyy")}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Last Updated</p>
-                  <p className="text-lg">
-                    {format(new Date(selectedPlan.updated_at), "MMM dd, yyyy")}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
     </div>

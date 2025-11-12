@@ -398,46 +398,37 @@ export type Database = {
       }
       demand_forecasting: {
         Row: {
-          accuracy_percentage: number | null
-          actual_demand: number | null
           created_at: string | null
           forecast_id: string
-          forecast_period_end: string
-          forecast_period_start: string
           id: string
+          lead_time: number | null
           notes: string | null
           predicted_demand: number
           product_id: string
+          recommend_order_qty: number | null
           updated_at: string | null
-          warehouse_id: string
         }
         Insert: {
-          accuracy_percentage?: number | null
-          actual_demand?: number | null
           created_at?: string | null
           forecast_id: string
-          forecast_period_end: string
-          forecast_period_start: string
           id?: string
+          lead_time?: number | null
           notes?: string | null
           predicted_demand: number
           product_id: string
+          recommend_order_qty?: number | null
           updated_at?: string | null
-          warehouse_id: string
         }
         Update: {
-          accuracy_percentage?: number | null
-          actual_demand?: number | null
           created_at?: string | null
           forecast_id?: string
-          forecast_period_end?: string
-          forecast_period_start?: string
           id?: string
+          lead_time?: number | null
           notes?: string | null
           predicted_demand?: number
           product_id?: string
+          recommend_order_qty?: number | null
           updated_at?: string | null
-          warehouse_id?: string
         }
         Relationships: [
           {
@@ -445,13 +436,6 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "demand_forecasting_warehouse_id_fkey"
-            columns: ["warehouse_id"]
-            isOneToOne: false
-            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -1465,7 +1449,9 @@ export type Database = {
           id: string
           plan_id: string
           plan_status: string
+          po_number: string | null
           product_id: string
+          requisition_id: string | null
           supplier_id: string
           updated_at: string | null
           warehouse_id: string
@@ -1476,7 +1462,9 @@ export type Database = {
           id?: string
           plan_id: string
           plan_status?: string
+          po_number?: string | null
           product_id: string
+          requisition_id?: string | null
           supplier_id: string
           updated_at?: string | null
           warehouse_id: string
@@ -1487,17 +1475,33 @@ export type Database = {
           id?: string
           plan_id?: string
           plan_status?: string
+          po_number?: string | null
           product_id?: string
+          requisition_id?: string | null
           supplier_id?: string
           updated_at?: string | null
           warehouse_id?: string
         }
         Relationships: [
           {
+            foreignKeyName: "supply_chain_plans_po_number_fkey"
+            columns: ["po_number"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["po_number"]
+          },
+          {
             foreignKeyName: "supply_chain_plans_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supply_chain_plans_requisition_id_fkey"
+            columns: ["requisition_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requisitions"
             referencedColumns: ["id"]
           },
           {
