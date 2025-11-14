@@ -29,7 +29,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Search, Plus, Edit } from "lucide-react";
+import { Search, Plus, Edit, Trash2 } from "lucide-react";
 
 export default function SupplyChainPlanning() {
   const queryClient = useQueryClient();
@@ -66,7 +66,7 @@ export default function SupplyChainPlanning() {
 
       if (error) throw error;
 
-      // Fetch current stock and forecast demand for each plan
+      // Fetch current stock for each plan
       const enrichedPlans = await Promise.all(
         (data || []).map(async (plan) => {
           // Get current stock (available_quantity)
@@ -74,19 +74,12 @@ export default function SupplyChainPlanning() {
             .from("inventory")
             .select("available_quantity")
             .eq("item_id", plan.product_id)
-            .maybeSingle();
-
-          // Get recommended order qty from demand forecasting
-          const { data: forecastData } = await supabase
-            .from("demand_forecasting")
-            .select("recommend_order_qty")
-            .eq("product_id", plan.product_id)
+            .eq("warehouse_id", plan.warehouse_id)
             .maybeSingle();
 
           return {
             ...plan,
             current_stock: inventoryData?.available_quantity ?? 0,
-            forecast_demand_value: forecastData?.recommend_order_qty ?? "-",
           };
         })
       );
@@ -233,8 +226,6 @@ export default function SupplyChainPlanning() {
         .update({
           plan_status: data.plan_status,
           warehouse_id: data.warehouse_id,
-          forecast_demand: parseInt(data.forecast_demand),
-          updated_at: new Date().toISOString(),
         })
         .eq("id", id);
 
@@ -243,14 +234,31 @@ export default function SupplyChainPlanning() {
     onSuccess: () => {
       toast.success("Supply chain plan updated successfully");
       queryClient.invalidateQueries({ queryKey: ["supply_chain_plans"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase_orders"] });
-      queryClient.invalidateQueries({ queryKey: ["goods_receipts"] });
       setIsAddDialogOpen(false);
       setSelectedPlan(null);
       resetForm();
     },
     onError: (error: any) => {
       toast.error(`Failed to update plan: ${error.message}`);
+    },
+  });
+
+  // Delete supply chain plan mutation
+  const deletePlanMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("supply_chain_plans")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Supply chain plan deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["supply_chain_plans"] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to delete plan: ${error.message}`);
     },
   });
 
@@ -273,7 +281,7 @@ export default function SupplyChainPlanning() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.po_number || !formData.warehouse_id || !formData.forecast_demand) {
+    if (!formData.po_number || !formData.warehouse_id) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -291,10 +299,16 @@ export default function SupplyChainPlanning() {
       po_number: plan.po_number || "",
       requisition_id: plan.requisition_id || "",
       warehouse_id: plan.warehouse_id,
-      forecast_demand: plan.forecast_demand.toString(),
+      forecast_demand: "",
       plan_status: plan.plan_status,
     });
     setIsAddDialogOpen(true);
+  };
+
+  const handleDelete = (planId: string) => {
+    if (window.confirm("Are you sure you want to delete this supply chain plan?")) {
+      deletePlanMutation.mutate(planId);
+    }
   };
 
   const filteredPlans = (plans || []).filter((plan) => {
@@ -360,6 +374,7 @@ export default function SupplyChainPlanning() {
                   <TableHead>Plan ID</TableHead>
                   <TableHead>PO Number</TableHead>
                   <TableHead>Requisition ID</TableHead>
+                  <TableHead>Product</TableHead>
                   <TableHead>Current Stock</TableHead>
                   <TableHead>Supplier</TableHead>
                   <TableHead>Status</TableHead>
@@ -371,7 +386,7 @@ export default function SupplyChainPlanning() {
               <TableBody>
                 {filteredPlans.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       No supply chain plans found. Create your first plan to get started.
                     </TableCell>
                   </TableRow>
@@ -381,19 +396,29 @@ export default function SupplyChainPlanning() {
                       <TableCell className="font-medium">{plan.plan_id}</TableCell>
                       <TableCell>{plan.po_number || "—"}</TableCell>
                       <TableCell>{plan.requisition_id || "—"}</TableCell>
+                      <TableCell>{plan.items?.name || "—"}</TableCell>
                       <TableCell>{plan.current_stock} units</TableCell>
                       <TableCell>{plan.suppliers?.name || "—"}</TableCell>
                       <TableCell>{getStatusBadge(plan.plan_status)}</TableCell>
                       <TableCell>{plan.warehouses?.name || "—"}</TableCell>
-                      <TableCell>{plan.forecast_demand_value !== "-" ? `${plan.forecast_demand_value} units` : "—"}</TableCell>
+                      <TableCell>{plan.forecast_demand ? `${plan.forecast_demand} units` : "—"}</TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEdit(plan)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(plan)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(plan.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -507,17 +532,18 @@ export default function SupplyChainPlanning() {
                 </Select>
               </div>
 
-              {/* Forecast Demand */}
+              {/* Forecast Demand (Display Only) */}
               <div className="space-y-2">
-                <Label>Forecast Demand (units) *</Label>
+                <Label>Forecast Demand (units)</Label>
                 <Input
-                  type="number"
-                  placeholder="Enter forecast demand"
-                  value={formData.forecast_demand}
-                  onChange={(e) =>
-                    setFormData({ ...formData, forecast_demand: e.target.value })
-                  }
+                  value={selectedPlan?.forecast_demand || "—"}
+                  disabled
+                  className="bg-muted"
+                  placeholder="Auto-filled from Demand Forecasting"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Value updates automatically from Demand Forecasting
+                </p>
               </div>
 
               {/* Plan Status */}
