@@ -403,6 +403,7 @@ export type Database = {
           id: string
           lead_time: number | null
           notes: string | null
+          plan_id: string | null
           predicted_demand: number
           product_id: string
           recommend_order_qty: number | null
@@ -414,6 +415,7 @@ export type Database = {
           id?: string
           lead_time?: number | null
           notes?: string | null
+          plan_id?: string | null
           predicted_demand: number
           product_id: string
           recommend_order_qty?: number | null
@@ -425,12 +427,20 @@ export type Database = {
           id?: string
           lead_time?: number | null
           notes?: string | null
+          plan_id?: string | null
           predicted_demand?: number
           product_id?: string
           recommend_order_qty?: number | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "demand_forecasting_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "supply_chain_plans"
+            referencedColumns: ["plan_id"]
+          },
           {
             foreignKeyName: "demand_forecasting_product_id_fkey"
             columns: ["product_id"]
@@ -1033,6 +1043,7 @@ export type Database = {
           status: string
           supplier_id: string
           total: number | null
+          updated_at: string | null
         }
         Insert: {
           created_at?: string
@@ -1044,6 +1055,7 @@ export type Database = {
           status?: string
           supplier_id: string
           total?: number | null
+          updated_at?: string | null
         }
         Update: {
           created_at?: string
@@ -1055,6 +1067,7 @@ export type Database = {
           status?: string
           supplier_id?: string
           total?: number | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -1219,6 +1232,7 @@ export type Database = {
           distance_km: number | null
           expected_arrival_time: string | null
           id: string
+          plan_id: string | null
           route_id: string
           route_status: string
           source_warehouse_id: string
@@ -1232,6 +1246,7 @@ export type Database = {
           distance_km?: number | null
           expected_arrival_time?: string | null
           id?: string
+          plan_id?: string | null
           route_id: string
           route_status?: string
           source_warehouse_id: string
@@ -1245,6 +1260,7 @@ export type Database = {
           distance_km?: number | null
           expected_arrival_time?: string | null
           id?: string
+          plan_id?: string | null
           route_id?: string
           route_status?: string
           source_warehouse_id?: string
@@ -1258,6 +1274,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "suppliers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "routing_management_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "supply_chain_plans"
+            referencedColumns: ["plan_id"]
           },
           {
             foreignKeyName: "routing_management_source_warehouse_id_fkey"
