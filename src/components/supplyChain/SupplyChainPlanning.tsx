@@ -201,7 +201,7 @@ export default function SupplyChainPlanning() {
           product_id: productId,
           supplier_id: supplierId,
           warehouse_id: data.warehouse_id,
-          forecast_demand: parseInt(data.forecast_demand),
+          forecast_demand: 0, // Will be updated from demand forecasting
           plan_status: data.plan_status,
         }]);
 
