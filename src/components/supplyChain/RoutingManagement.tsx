@@ -272,6 +272,28 @@ export default function RoutingManagement() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
+              {/* Plan ID */}
+              <div className="space-y-2">
+                <Label>Plan ID</Label>
+                <Select
+                  value={formData.plan_id}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, plan_id: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select plan (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {supplyChainPlans?.map((plan) => (
+                      <SelectItem key={plan.plan_id} value={plan.plan_id}>
+                        {plan.plan_id} - {plan.po_number || "No PO"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Source Warehouse */}
               <div className="space-y-2">
                 <Label>Source Warehouse *</Label>

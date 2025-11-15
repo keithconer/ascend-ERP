@@ -1468,7 +1468,7 @@ export type Database = {
       supply_chain_plans: {
         Row: {
           created_at: string | null
-          forecast_demand: number
+          forecast_demand: number | null
           id: string
           plan_id: string
           plan_status: string
@@ -1481,7 +1481,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
-          forecast_demand: number
+          forecast_demand?: number | null
           id?: string
           plan_id: string
           plan_status?: string
@@ -1494,7 +1494,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
-          forecast_demand?: number
+          forecast_demand?: number | null
           id?: string
           plan_id?: string
           plan_status?: string
