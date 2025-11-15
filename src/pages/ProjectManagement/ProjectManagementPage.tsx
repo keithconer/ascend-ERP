@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import ProjectsTab from "@/components/ProjectManagement/ProjectsTab";
-import TasksTab from "@/components/ProjectManagement/TasksTab";
-import GanttChartTab from "@/components/ProjectManagement/GanttChartTab";
+import ProjectsManagement from "@/components/ProjectManagement/ProjectsManagement";
+import ResourceManagement from "@/components/ProjectManagement/ResourceManagement";
+import TasksManagement from "@/components/ProjectManagement/TasksManagement";
+import GanttChart from "@/components/ProjectManagement/GanttChart";
+
 
 const ProjectManagementPage = () => {
   const [activeTab, setActiveTab] = useState("projects");
@@ -13,21 +15,26 @@ const ProjectManagementPage = () => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
-          <TabsTrigger value="projects">Projects</TabsTrigger>
-          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="projects">Projects Management</TabsTrigger>
+          <TabsTrigger value="resource">Resource Management</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks Management</TabsTrigger>
           <TabsTrigger value="gantt">Gantt Chart</TabsTrigger>
         </TabsList>
 
         <TabsContent value="projects">
-          <ProjectsTab />
+          <ProjectsManagement />
+        </TabsContent>
+
+        <TabsContent value="resource">
+          <ResourceManagement />
         </TabsContent>
 
         <TabsContent value="tasks">
-          <TasksTab />
+          <TasksManagement />
         </TabsContent>
 
         <TabsContent value="gantt">
-          <GanttChartTab />
+          <GanttChart />
         </TabsContent>
       </Tabs>
     </div>
