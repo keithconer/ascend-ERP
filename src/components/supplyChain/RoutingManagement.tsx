@@ -127,7 +127,7 @@ export default function RoutingManagement() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Route created successfully");
+      toast.success("Route created successfully - Purchase order status will update automatically");
       queryClient.invalidateQueries({ queryKey: ["routing_management"] });
       queryClient.invalidateQueries({ queryKey: ["purchase_orders"] });
       setIsAddDialogOpen(false);
@@ -157,7 +157,7 @@ export default function RoutingManagement() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Route updated successfully");
+      toast.success("Route updated successfully - Purchase order status synced");
       queryClient.invalidateQueries({ queryKey: ["routing_management"] });
       queryClient.invalidateQueries({ queryKey: ["purchase_orders"] });
       setIsAddDialogOpen(false);
@@ -267,7 +267,7 @@ export default function RoutingManagement() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Routing Management</h2>
           <p className="text-sm text-muted-foreground">
-            Manage delivery routes and track shipment status
+            Manage delivery routes and track shipment status (auto-syncs with Purchase Orders)
           </p>
         </div>
         <Button
@@ -366,7 +366,7 @@ export default function RoutingManagement() {
               {selectedRoute ? "Edit Route" : "Add New Route"}
             </DialogTitle>
             <DialogDescription>
-              Select an approved plan and configure the route details
+              Select an approved plan and configure the route details. Purchase order status will auto-sync with route status.
             </DialogDescription>
           </DialogHeader>
 
@@ -476,7 +476,7 @@ export default function RoutingManagement() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Status changes will update related purchase orders
+                  Status changes will automatically update related purchase orders
                 </p>
               </div>
 

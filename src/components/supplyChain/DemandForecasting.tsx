@@ -67,12 +67,12 @@ export default function DemandForecasting() {
             .eq("item_id", forecast.product_id)
             .eq("transaction_type", "stock-out");
 
-          // Sum the actual quantity values from stock_transactions
-          const totalSales = stockData?.reduce((sum, trans) => sum + trans.quantity, 0) || 0;
+          // Sum the absolute values for display
+          const totalSales = stockData?.reduce((sum, trans) => sum + Math.abs(trans.quantity), 0) || 0;
 
           return {
             ...forecast,
-            historical_sales: Math.abs(totalSales), // Use absolute value for display
+            historical_sales: totalSales,
           };
         })
       );
@@ -217,12 +217,10 @@ export default function DemandForecasting() {
   };
 
   const handlePlanChange = async (planId: string) => {
-    setFormData({ ...formData, plan_id: planId });
-    
     // Find the plan and auto-populate product
     const selectedPlan = supplyChainPlans?.find(plan => plan.plan_id === planId);
     if (selectedPlan && selectedPlan.product_id) {
-      // Auto-populate product
+      // Auto-populate product and plan_id together
       setFormData(prev => ({ 
         ...prev, 
         plan_id: planId, 
@@ -230,15 +228,25 @@ export default function DemandForecasting() {
       }));
       
       // Fetch historical sales for the selected product
-      const { data: stockData } = await supabase
+      // Looking for stock-out transactions which represent sales
+      const { data: stockData, error } = await supabase
         .from("stock_transactions")
         .select("quantity")
         .eq("item_id", selectedPlan.product_id)
         .eq("transaction_type", "stock-out");
 
-      // Sum the actual quantity values
-      const totalSales = stockData?.reduce((sum, trans) => sum + trans.quantity, 0) || 0;
-      setHistoricalSales(Math.abs(totalSales));
+      if (error) {
+        console.error("Error fetching historical sales:", error);
+        setHistoricalSales(0);
+      } else {
+        // Sum the absolute values of quantities (stock-out quantities are positive in our system)
+        const totalSales = stockData?.reduce((sum, trans) => sum + Math.abs(trans.quantity), 0) || 0;
+        setHistoricalSales(totalSales);
+      }
+    } else {
+      // If no product found in plan, reset
+      setFormData(prev => ({ ...prev, plan_id: planId }));
+      setHistoricalSales(0);
     }
   };
 
@@ -246,15 +254,21 @@ export default function DemandForecasting() {
     setFormData({ ...formData, product_id: productId });
     
     // Fetch historical sales for the selected product
-    const { data: stockData } = await supabase
+    // Looking for stock-out transactions which represent sales
+    const { data: stockData, error } = await supabase
       .from("stock_transactions")
       .select("quantity")
       .eq("item_id", productId)
       .eq("transaction_type", "stock-out");
 
-    // Sum the actual quantity values
-    const totalSales = stockData?.reduce((sum, trans) => sum + trans.quantity, 0) || 0;
-    setHistoricalSales(Math.abs(totalSales));
+    if (error) {
+      console.error("Error fetching historical sales:", error);
+      setHistoricalSales(0);
+    } else {
+      // Sum the absolute values of quantities
+      const totalSales = stockData?.reduce((sum, trans) => sum + Math.abs(trans.quantity), 0) || 0;
+      setHistoricalSales(totalSales);
+    }
   };
 
   const filteredForecasts = (forecasts || []).filter((forecast) => {
@@ -316,6 +330,7 @@ export default function DemandForecasting() {
                   <TableHead>Forecast ID</TableHead>
                   <TableHead>Plan ID</TableHead>
                   <TableHead>Product (from Plan)</TableHead>
+                  <TableHead>Historical Sales</TableHead>
                   <TableHead>Lead Time (days)</TableHead>
                   <TableHead>Predicted Demand</TableHead>
                   <TableHead>Recommend Order Qty</TableHead>
@@ -325,7 +340,7 @@ export default function DemandForecasting() {
               <TableBody>
                 {filteredForecasts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No demand forecasts found. Create your first forecast to get started.
                     </TableCell>
                   </TableRow>
@@ -335,6 +350,7 @@ export default function DemandForecasting() {
                       <TableCell className="font-medium">{forecast.forecast_id}</TableCell>
                       <TableCell>{forecast.plan_id || "—"}</TableCell>
                       <TableCell>{forecast.items?.name || "—"}</TableCell>
+                      <TableCell>{forecast.historical_sales || 0} units</TableCell>
                       <TableCell>{forecast.lead_time || "—"}</TableCell>
                       <TableCell>{forecast.predicted_demand} units</TableCell>
                       <TableCell>{forecast.recommend_order_qty || "—"} units</TableCell>
@@ -388,6 +404,9 @@ export default function DemandForecasting() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Product will auto-populate from the selected plan
+                </p>
               </div>
 
               {/* Product (Auto-populated) */}
@@ -402,16 +421,22 @@ export default function DemandForecasting() {
                   disabled
                   className="bg-muted"
                 />
+                <p className="text-xs text-muted-foreground">
+                  This field auto-fills when you select a plan
+                </p>
               </div>
 
               {/* Historical Sales (Display Only) */}
               <div className="space-y-2">
-                <Label>Historical Sales</Label>
+                <Label>Historical Sales (from Stock Transactions)</Label>
                 <Input
                   value={`${historicalSales} units`}
                   disabled
                   className="bg-muted"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Auto-calculated from stock-out transactions
+                </p>
               </div>
 
               {/* Lead Time */}
