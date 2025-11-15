@@ -94,13 +94,18 @@ export default function DemandForecasting() {
     },
   });
 
-  // Fetch supply chain plans
+  // Fetch supply chain plans with product details
   const { data: supplyChainPlans } = useQuery({
     queryKey: ["supply_chain_plans_list"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("supply_chain_plans")
-        .select("plan_id, id")
+        .select(`
+          plan_id, 
+          id, 
+          product_id,
+          items (id, name, sku)
+        `)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -210,6 +215,31 @@ export default function DemandForecasting() {
     setIsAddDialogOpen(true);
   };
 
+  const handlePlanChange = async (planId: string) => {
+    setFormData({ ...formData, plan_id: planId });
+    
+    // Find the plan and auto-populate product
+    const selectedPlan = supplyChainPlans?.find(plan => plan.plan_id === planId);
+    if (selectedPlan && selectedPlan.product_id) {
+      // Auto-populate product
+      setFormData(prev => ({ 
+        ...prev, 
+        plan_id: planId, 
+        product_id: selectedPlan.product_id 
+      }));
+      
+      // Fetch historical sales for the selected product
+      const { data: stockData } = await supabase
+        .from("stock_transactions")
+        .select("quantity")
+        .eq("item_id", selectedPlan.product_id)
+        .eq("transaction_type", "stock-out");
+
+      const totalSales = stockData?.reduce((sum, trans) => sum + Math.abs(trans.quantity), 0) || 0;
+      setHistoricalSales(totalSales);
+    }
+  };
+
   const handleProductChange = async (productId: string) => {
     setFormData({ ...formData, product_id: productId });
     
@@ -282,7 +312,7 @@ export default function DemandForecasting() {
                 <TableRow>
                   <TableHead>Forecast ID</TableHead>
                   <TableHead>Plan ID</TableHead>
-                  <TableHead>Product</TableHead>
+                  <TableHead>Product (from Plan)</TableHead>
                   <TableHead>Lead Time (days)</TableHead>
                   <TableHead>Predicted Demand</TableHead>
                   <TableHead>Recommend Order Qty</TableHead>
@@ -331,7 +361,7 @@ export default function DemandForecasting() {
               {selectedForecast ? "Edit Demand Forecast" : "Add New Demand Forecast"}
             </DialogTitle>
             <DialogDescription>
-              Select a product and enter lead time to calculate predicted demand
+              Select a plan to auto-populate the product, then enter lead time to calculate predicted demand
             </DialogDescription>
           </DialogHeader>
 
@@ -339,43 +369,36 @@ export default function DemandForecasting() {
             <div className="grid grid-cols-2 gap-4">
               {/* Plan ID */}
               <div className="space-y-2">
-                <Label>Plan ID (Optional)</Label>
+                <Label>Plan ID</Label>
                 <Select
                   value={formData.plan_id}
-                  onValueChange={(value) => setFormData({ ...formData, plan_id: value })}
+                  onValueChange={handlePlanChange}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select plan" />
+                    <SelectValue placeholder="Select plan (will auto-fill product)" />
                   </SelectTrigger>
                   <SelectContent>
                     {supplyChainPlans?.map((plan) => (
                       <SelectItem key={plan.id} value={plan.plan_id}>
-                        {plan.plan_id}
+                        {plan.plan_id} - {plan.items?.name || "No product"}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Product */}
+              {/* Product (Auto-populated) */}
               <div className="space-y-2">
-                <Label>Product *</Label>
-                <Select
-                  value={formData.product_id}
-                  onValueChange={handleProductChange}
-                  disabled={!!selectedForecast}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products?.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name} ({product.sku})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Product (Auto-populated from Plan)</Label>
+                <Input
+                  value={
+                    formData.product_id && products
+                      ? products.find(p => p.id === formData.product_id)?.name || "Not selected"
+                      : "Select a plan first"
+                  }
+                  disabled
+                  className="bg-muted"
+                />
               </div>
 
               {/* Historical Sales (Display Only) */}
