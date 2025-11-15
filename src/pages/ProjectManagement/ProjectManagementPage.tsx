@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import ProjectsManagement from "@/components/ProjectManagement/ProjectsManagement";
-import ResourceManagement from "@/components/ProjectManagement/ResourceManagement";
-import TasksManagement from "@/components/ProjectManagement/TasksManagement";
-import GanttChart from "@/components/ProjectManagement/GanttChart";
+import {ProjectsManagement} from "@/components/ProjectManagement/ProjectsManagement";
+import {ResourceManagement} from "@/components/ProjectManagement/ResourceManagement";
+import {TasksManagement} from "@/components/ProjectManagement/TasksManagement";
+import { GanttChart } from "@/components/ProjectManagement/GanttChart";
+
 
 
 const ProjectManagementPage = () => {
