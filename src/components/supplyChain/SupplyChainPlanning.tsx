@@ -324,7 +324,6 @@ export default function SupplyChainPlanning() {
     const variants: Record<string, any> = {
       pending: "secondary",
       approved: "default",
-      delayed: "destructive",
     };
     return <Badge variant={variants[status] || "outline"}>{status}</Badge>;
   };
@@ -561,11 +560,10 @@ export default function SupplyChainPlanning() {
                   <SelectContent>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="delayed">Delayed</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Setting status to "delayed" will update PO and GR status
+                  Only approved plans can be used in routing management
                 </p>
               </div>
             </div>

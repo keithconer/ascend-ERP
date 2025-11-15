@@ -67,11 +67,12 @@ export default function DemandForecasting() {
             .eq("item_id", forecast.product_id)
             .eq("transaction_type", "stock-out");
 
-          const totalSales = stockData?.reduce((sum, trans) => sum + Math.abs(trans.quantity), 0) || 0;
+          // Sum the actual quantity values from stock_transactions
+          const totalSales = stockData?.reduce((sum, trans) => sum + trans.quantity, 0) || 0;
 
           return {
             ...forecast,
-            historical_sales: totalSales,
+            historical_sales: Math.abs(totalSales), // Use absolute value for display
           };
         })
       );
@@ -235,8 +236,9 @@ export default function DemandForecasting() {
         .eq("item_id", selectedPlan.product_id)
         .eq("transaction_type", "stock-out");
 
-      const totalSales = stockData?.reduce((sum, trans) => sum + Math.abs(trans.quantity), 0) || 0;
-      setHistoricalSales(totalSales);
+      // Sum the actual quantity values
+      const totalSales = stockData?.reduce((sum, trans) => sum + trans.quantity, 0) || 0;
+      setHistoricalSales(Math.abs(totalSales));
     }
   };
 
@@ -250,8 +252,9 @@ export default function DemandForecasting() {
       .eq("item_id", productId)
       .eq("transaction_type", "stock-out");
 
-    const totalSales = stockData?.reduce((sum, trans) => sum + Math.abs(trans.quantity), 0) || 0;
-    setHistoricalSales(totalSales);
+    // Sum the actual quantity values
+    const totalSales = stockData?.reduce((sum, trans) => sum + trans.quantity, 0) || 0;
+    setHistoricalSales(Math.abs(totalSales));
   };
 
   const filteredForecasts = (forecasts || []).filter((forecast) => {
