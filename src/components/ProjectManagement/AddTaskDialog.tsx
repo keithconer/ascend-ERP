@@ -23,6 +23,7 @@ import { X, Plus } from "lucide-react";
 interface Task {
   name: string;
   price: number;
+  assigned_to: number | null;
 }
 
 interface AddTaskDialogProps {
@@ -32,8 +33,7 @@ interface AddTaskDialogProps {
 
 export const AddTaskDialog = ({ open, onOpenChange }: AddTaskDialogProps) => {
   const [projectId, setProjectId] = useState("");
-  const [assignedTo, setAssignedTo] = useState("");
-  const [tasks, setTasks] = useState<Task[]>([{ name: "", price: 0 }]);
+  const [tasks, setTasks] = useState<Task[]>([{ name: "", price: 0, assigned_to: null }]);
   const queryClient = useQueryClient();
 
   const { data: projects } = useQuery({
@@ -67,7 +67,7 @@ export const AddTaskDialog = ({ open, onOpenChange }: AddTaskDialogProps) => {
         task_code: "",
         project_id: projectId,
         tasks: tasks as any,
-        assigned_to: assignedTo ? parseInt(assignedTo) : null,
+        assigned_to: null,
         total_labor: total,
       }]);
       if (error) throw error;
@@ -86,12 +86,11 @@ export const AddTaskDialog = ({ open, onOpenChange }: AddTaskDialogProps) => {
 
   const resetForm = () => {
     setProjectId("");
-    setAssignedTo("");
-    setTasks([{ name: "", price: 0 }]);
+    setTasks([{ name: "", price: 0, assigned_to: null }]);
   };
 
   const handleAddTask = () => {
-    setTasks([...tasks, { name: "", price: 0 }]);
+    setTasks([...tasks, { name: "", price: 0, assigned_to: null }]);
   };
 
   const handleRemoveTask = (index: number) => {
@@ -116,7 +115,7 @@ export const AddTaskDialog = ({ open, onOpenChange }: AddTaskDialogProps) => {
       toast.error("Please select a project");
       return;
     }
-    if (tasks.some((task) => !task.name || !task.price)) {
+    if (tasks.some((task) => !task.name || !task.price || !task.assigned_to)) {
       toast.error("Please fill in all task fields");
       return;
     }
@@ -185,6 +184,23 @@ export const AddTaskDialog = ({ open, onOpenChange }: AddTaskDialogProps) => {
                         )
                       }
                     />
+                    <Select
+                      value={task.assigned_to?.toString() || ""}
+                      onValueChange={(value) =>
+                        handleTaskChange(index, "assigned_to", parseInt(value))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Assign employee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees?.map((employee) => (
+                          <SelectItem key={employee.id} value={employee.id.toString()}>
+                            {employee.first_name} {employee.last_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   {tasks.length > 1 && (
                     <Button
@@ -199,22 +215,6 @@ export const AddTaskDialog = ({ open, onOpenChange }: AddTaskDialogProps) => {
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="assignedTo">Assigned To</Label>
-            <Select value={assignedTo} onValueChange={setAssignedTo}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select employee" />
-              </SelectTrigger>
-              <SelectContent>
-                {employees?.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.id.toString()}>
-                    {employee.first_name} {employee.last_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="p-3 bg-muted rounded-lg">

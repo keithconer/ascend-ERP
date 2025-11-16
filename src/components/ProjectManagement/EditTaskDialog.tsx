@@ -23,6 +23,7 @@ import { X, Plus } from "lucide-react";
 interface Task {
   name: string;
   price: number;
+  assigned_to: number | null;
 }
 
 interface ProjectTask {
@@ -42,7 +43,6 @@ interface EditTaskDialogProps {
 
 export const EditTaskDialog = ({ task, open, onOpenChange }: EditTaskDialogProps) => {
   const [projectId, setProjectId] = useState(task.project_id);
-  const [assignedTo, setAssignedTo] = useState(task.assigned_to?.toString() || "");
   const [tasks, setTasks] = useState<Task[]>(task.tasks);
   const queryClient = useQueryClient();
 
@@ -72,7 +72,6 @@ export const EditTaskDialog = ({ task, open, onOpenChange }: EditTaskDialogProps
 
   useEffect(() => {
     setProjectId(task.project_id);
-    setAssignedTo(task.assigned_to?.toString() || "");
     setTasks(task.tasks);
   }, [task]);
 
@@ -84,7 +83,7 @@ export const EditTaskDialog = ({ task, open, onOpenChange }: EditTaskDialogProps
         .update({
           project_id: projectId,
           tasks: tasks as any,
-          assigned_to: assignedTo ? parseInt(assignedTo) : null,
+          assigned_to: null,
           total_labor: total,
         })
         .eq("id", task.id);
@@ -102,7 +101,7 @@ export const EditTaskDialog = ({ task, open, onOpenChange }: EditTaskDialogProps
   });
 
   const handleAddTask = () => {
-    setTasks([...tasks, { name: "", price: 0 }]);
+    setTasks([...tasks, { name: "", price: 0, assigned_to: null }]);
   };
 
   const handleRemoveTask = (index: number) => {
@@ -127,7 +126,7 @@ export const EditTaskDialog = ({ task, open, onOpenChange }: EditTaskDialogProps
       toast.error("Please select a project");
       return;
     }
-    if (tasks.some((t) => !t.name || !t.price)) {
+    if (tasks.some((t) => !t.name || !t.price || !t.assigned_to)) {
       toast.error("Please fill in all task fields");
       return;
     }
@@ -201,6 +200,23 @@ export const EditTaskDialog = ({ task, open, onOpenChange }: EditTaskDialogProps
                         )
                       }
                     />
+                    <Select
+                      value={t.assigned_to?.toString() || ""}
+                      onValueChange={(value) =>
+                        handleTaskChange(index, "assigned_to", parseInt(value))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Assign employee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {employees?.map((employee) => (
+                          <SelectItem key={employee.id} value={employee.id.toString()}>
+                            {employee.first_name} {employee.last_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   {tasks.length > 1 && (
                     <Button
@@ -215,23 +231,6 @@ export const EditTaskDialog = ({ task, open, onOpenChange }: EditTaskDialogProps
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="assignedTo">Assigned To</Label>
-            <Select value={assignedTo} onValueChange={setAssignedTo}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select employee" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">None</SelectItem>
-                {employees?.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.id.toString()}>
-                    {employee.first_name} {employee.last_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="p-3 bg-muted rounded-lg">

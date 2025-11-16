@@ -18,6 +18,12 @@ import { EditTaskDialog } from "./EditTaskDialog";
 interface Task {
   name: string;
   price: number;
+  assigned_to: number | null;
+}
+
+interface Employee {
+  first_name: string;
+  last_name: string;
 }
 
 interface ProjectTask {
@@ -49,12 +55,22 @@ export const TasksManagement = () => {
         .from("project_tasks")
         .select(`
           *,
-          project:projects(project_name, project_code),
-          employee:employees(first_name, last_name)
+          project:projects(project_name, project_code)
         `)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as any as ProjectTask[];
+    },
+  });
+
+  const { data: employees } = useQuery({
+    queryKey: ["employees"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id, first_name, last_name");
+      if (error) throw error;
+      return data as { id: number; first_name: string; last_name: string }[];
     },
   });
 
@@ -97,21 +113,20 @@ export const TasksManagement = () => {
               <TableHead>Project Code</TableHead>
               <TableHead>Project Name</TableHead>
               <TableHead>Included Tasks</TableHead>
-              <TableHead>Assigned To</TableHead>
               <TableHead>Total Labor</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+          {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center">
+                <TableCell colSpan={6} className="text-center">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : projectTasks?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center">
+                <TableCell colSpan={6} className="text-center">
                   No tasks found
                 </TableCell>
               </TableRow>
@@ -123,17 +138,20 @@ export const TasksManagement = () => {
                   <TableCell>{task.project?.project_name || "-"}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      {task.tasks.map((t, idx) => (
-                        <div key={idx} className="text-sm">
-                          {t.name} - {formatCurrency(t.price)}
-                        </div>
-                      ))}
+                      {task.tasks.map((t, idx) => {
+                        const assignedEmployee = employees?.find(e => e.id === t.assigned_to);
+                        return (
+                          <div key={idx} className="text-sm">
+                            {t.name} - {formatCurrency(t.price)}
+                            {assignedEmployee && (
+                              <span className="text-muted-foreground ml-2">
+                                ({assignedEmployee.first_name} {assignedEmployee.last_name})
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    {task.employee
-                      ? `${task.employee.first_name} ${task.employee.last_name}`
-                      : "-"}
                   </TableCell>
                   <TableCell>{formatCurrency(task.total_labor)}</TableCell>
                   <TableCell className="text-right">

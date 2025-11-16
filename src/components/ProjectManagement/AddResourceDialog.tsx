@@ -22,6 +22,7 @@ import { X, Plus } from "lucide-react";
 
 interface Equipment {
   name: string;
+  quantity: number;
   price: number;
 }
 
@@ -33,7 +34,7 @@ interface AddResourceDialogProps {
 export const AddResourceDialog = ({ open, onOpenChange }: AddResourceDialogProps) => {
   const [projectId, setProjectId] = useState("");
   const [equipments, setEquipments] = useState<Equipment[]>([
-    { name: "", price: 0 },
+    { name: "", quantity: 1, price: 0 },
   ]);
   const queryClient = useQueryClient();
 
@@ -51,7 +52,7 @@ export const AddResourceDialog = ({ open, onOpenChange }: AddResourceDialogProps
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      const total = equipments.reduce((sum, eq) => sum + (eq.price || 0), 0);
+      const total = equipments.reduce((sum, eq) => sum + ((eq.quantity || 0) * (eq.price || 0)), 0);
       const { error } = await supabase.from("project_resources").insert([{
         resource_code: "",
         project_id: projectId,
@@ -74,11 +75,11 @@ export const AddResourceDialog = ({ open, onOpenChange }: AddResourceDialogProps
 
   const resetForm = () => {
     setProjectId("");
-    setEquipments([{ name: "", price: 0 }]);
+    setEquipments([{ name: "", quantity: 1, price: 0 }]);
   };
 
   const handleAddEquipment = () => {
-    setEquipments([...equipments, { name: "", price: 0 }]);
+    setEquipments([...equipments, { name: "", quantity: 1, price: 0 }]);
   };
 
   const handleRemoveEquipment = (index: number) => {
@@ -96,7 +97,7 @@ export const AddResourceDialog = ({ open, onOpenChange }: AddResourceDialogProps
   };
 
   const totalResources = equipments.reduce(
-    (sum, eq) => sum + (Number(eq.price) || 0),
+    (sum, eq) => sum + ((Number(eq.quantity) || 0) * (Number(eq.price) || 0)),
     0
   );
 
@@ -106,7 +107,7 @@ export const AddResourceDialog = ({ open, onOpenChange }: AddResourceDialogProps
       toast.error("Please select a project");
       return;
     }
-    if (equipments.some((eq) => !eq.name || !eq.price)) {
+    if (equipments.some((eq) => !eq.name || !eq.quantity || !eq.price)) {
       toast.error("Please fill in all equipment fields");
       return;
     }
@@ -155,7 +156,7 @@ export const AddResourceDialog = ({ open, onOpenChange }: AddResourceDialogProps
                   key={index}
                   className="flex gap-2 items-start p-3 border rounded-lg"
                 >
-                  <div className="flex-1 space-y-2">
+                  <div className="flex-1">
                     <Input
                       placeholder="Equipment name"
                       value={equipment.name}
@@ -163,6 +164,23 @@ export const AddResourceDialog = ({ open, onOpenChange }: AddResourceDialogProps
                         handleEquipmentChange(index, "name", e.target.value)
                       }
                     />
+                  </div>
+                  <div className="w-24">
+                    <Input
+                      type="number"
+                      placeholder="Qty"
+                      min="1"
+                      value={equipment.quantity || ""}
+                      onChange={(e) =>
+                        handleEquipmentChange(
+                          index,
+                          "quantity",
+                          parseInt(e.target.value) || 0
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="flex-1">
                     <Input
                       type="number"
                       placeholder="Price (₱)"

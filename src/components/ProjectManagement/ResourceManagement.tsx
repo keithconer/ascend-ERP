@@ -17,6 +17,7 @@ import { EditResourceDialog } from "./EditResourceDialog";
 
 interface Equipment {
   name: string;
+  quantity: number;
   price: number;
 }
 
@@ -123,7 +124,7 @@ export const ResourceManagement = () => {
                     <div className="space-y-1">
                       {resource.equipments.map((eq, idx) => (
                         <div key={idx} className="text-sm">
-                          {eq.name} - {formatCurrency(eq.price)}
+                          {eq.name} (x{eq.quantity}) - {formatCurrency(eq.price)} = {formatCurrency((eq.quantity || 0) * (eq.price || 0))}
                         </div>
                       ))}
                     </div>
