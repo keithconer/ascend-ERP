@@ -1,7 +1,9 @@
-import { useState } from "react";
+/* ======================  PROJECT MANAGEMENT  ====================== */
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";               // <-- NEW
 import { toast } from "sonner";
 import {
   Table,
@@ -11,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash } from "lucide-react";
+import { Plus, Edit, Trash, Search } from "lucide-react";   // <-- Search icon
 import { AddProjectDialog } from "./AddProjectDialog";
 import { EditProjectDialog } from "./EditProjectDialog";
 
@@ -28,6 +30,7 @@ interface Project {
 export const ProjectsManagement = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");               // <-- NEW
   const queryClient = useQueryClient();
 
   const { data: projects, isLoading } = useQuery({
@@ -42,6 +45,19 @@ export const ProjectsManagement = () => {
     },
   });
 
+  /* ----- FILTER LOGIC (project_name + project_code) ----- */
+  const filteredProjects = useMemo(() => {
+    if (!searchTerm) return projects ?? [];
+    const lower = searchTerm.toLowerCase();
+    return (
+      projects?.filter(
+        (p) =>
+          p.project_name.toLowerCase().includes(lower) ||
+          p.project_code.toLowerCase().includes(lower)
+      ) ?? []
+    );
+  }, [projects, searchTerm]);
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("projects").delete().eq("id", id);
@@ -51,17 +67,11 @@ export const ProjectsManagement = () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       toast.success("Project deleted successfully");
     },
-    onError: () => {
-      toast.error("Failed to delete project");
-    },
+    onError: () => toast.error("Failed to delete project"),
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
-    }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value);
 
   return (
     <div className="space-y-4">
@@ -71,6 +81,17 @@ export const ProjectsManagement = () => {
           <Plus className="mr-2 h-4 w-4" />
           Add Project
         </Button>
+      </div>
+
+      {/* ---------- SEARCH BAR ---------- */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by project name or code..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       <div className="border rounded-lg">
@@ -92,18 +113,16 @@ export const ProjectsManagement = () => {
                   Loading...
                 </TableCell>
               </TableRow>
-            ) : projects?.length === 0 ? (
+            ) : filteredProjects.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center">
                   No projects found
                 </TableCell>
               </TableRow>
             ) : (
-              projects?.map((project) => (
+              filteredProjects.map((project) => (
                 <TableRow key={project.id}>
-                  <TableCell className="font-medium">
-                    {project.project_code}
-                  </TableCell>
+                  <TableCell className="font-medium">{project.project_code}</TableCell>
                   <TableCell>{project.project_name}</TableCell>
                   <TableCell>{project.description || "-"}</TableCell>
                   <TableCell>{formatCurrency(project.project_cost)}</TableCell>

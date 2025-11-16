@@ -1,7 +1,9 @@
-import { useState } from "react";
+/* ======================  RESOURCE MANAGEMENT  ====================== */
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Table,
@@ -11,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash } from "lucide-react";
+import { Plus, Edit, Trash, Search } from "lucide-react";
 import { AddResourceDialog } from "./AddResourceDialog";
 import { EditResourceDialog } from "./EditResourceDialog";
 
@@ -20,22 +22,19 @@ interface Equipment {
   quantity: number;
   price: number;
 }
-
 interface Resource {
   id: string;
   resource_code: string;
   project_id: string;
   equipments: Equipment[];
   total_resources: number;
-  project?: {
-    project_name: string;
-    project_code: string;
-  };
+  project?: { project_name: string; project_code: string };
 }
 
 export const ResourceManagement = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editResource, setEditResource] = useState<Resource | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const queryClient = useQueryClient();
 
   const { data: resources, isLoading } = useQuery({
@@ -53,29 +52,32 @@ export const ResourceManagement = () => {
     },
   });
 
+  const filteredResources = useMemo(() => {
+    if (!searchTerm) return resources ?? [];
+    const lower = searchTerm.toLowerCase();
+    return (
+      resources?.filter(
+        (r) =>
+          r.resource_code.toLowerCase().includes(lower) ||
+          (r.project?.project_name ?? "").toLowerCase().includes(lower)
+      ) ?? []
+    );
+  }, [resources, searchTerm]);
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("project_resources")
-        .delete()
-        .eq("id", id);
+      const { error } = await supabase.from("project_resources").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project_resources"] });
       toast.success("Resource deleted successfully");
     },
-    onError: () => {
-      toast.error("Failed to delete resource");
-    },
+    onError: () => toast.error("Failed to delete resource"),
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
-    }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value);
 
   return (
     <div className="space-y-4">
@@ -85,6 +87,16 @@ export const ResourceManagement = () => {
           <Plus className="mr-2 h-4 w-4" />
           Manage Resource
         </Button>
+      </div>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by resource code or project name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       <div className="border rounded-lg">
@@ -102,29 +114,24 @@ export const ResourceManagement = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
-                  Loading...
-                </TableCell>
+                <TableCell colSpan={6} className="text-center">Loading...</TableCell>
               </TableRow>
-            ) : resources?.length === 0 ? (
+            ) : filteredResources.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
-                  No resources found
-                </TableCell>
+                <TableCell colSpan={6} className="text-center">No resources found</TableCell>
               </TableRow>
             ) : (
-              resources?.map((resource) => (
+              filteredResources.map((resource) => (
                 <TableRow key={resource.id}>
-                  <TableCell className="font-medium">
-                    {resource.resource_code}
-                  </TableCell>
+                  <TableCell className="font-medium">{resource.resource_code}</TableCell>
                   <TableCell>{resource.project?.project_code || "-"}</TableCell>
                   <TableCell>{resource.project?.project_name || "-"}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       {resource.equipments.map((eq, idx) => (
                         <div key={idx} className="text-sm">
-                          {eq.name} (x{eq.quantity}) - {formatCurrency(eq.price)} = {formatCurrency((eq.quantity || 0) * (eq.price || 0))}
+                          {eq.name} (x{eq.quantity}) - {formatCurrency(eq.price)} ={" "}
+                          {formatCurrency((eq.quantity || 0) * (eq.price || 0))}
                         </div>
                       ))}
                     </div>

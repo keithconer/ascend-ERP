@@ -1,7 +1,9 @@
-import { useState } from "react";
+/* ======================  GANTT CHART  ====================== */
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Table,
@@ -11,33 +13,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash, Eye } from "lucide-react";
+import { Plus, Edit, Trash, Eye, Search } from "lucide-react";
 import { AddTimelineDialog } from "./AddTimelineDialog";
 import { EditTimelineDialog } from "./EditTimelineDialog";
 import { ViewTimelineDialog } from "./ViewTimelineDialog";
 
-interface TaskSchedule {
-  taskName: string;
-  startDate: string;
-  endDate: string;
-}
-
+interface TaskSchedule { taskName: string; startDate: string; endDate: string; }
 interface Timeline {
   id: string;
   timeline_code: string;
   project_id: string;
   task_schedules: TaskSchedule[];
   estimated_end: string | null;
-  project?: {
-    project_name: string;
-    project_code: string;
-  };
+  project?: { project_name: string; project_code: string };
 }
 
 export const GanttChart = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editTimeline, setEditTimeline] = useState<Timeline | null>(null);
   const [viewTimeline, setViewTimeline] = useState<Timeline | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const queryClient = useQueryClient();
 
   const { data: timelines, isLoading } = useQuery({
@@ -55,21 +50,28 @@ export const GanttChart = () => {
     },
   });
 
+  const filteredTimelines = useMemo(() => {
+    if (!searchTerm) return timelines ?? [];
+    const lower = searchTerm.toLowerCase();
+    return (
+      timelines?.filter(
+        (t) =>
+          t.timeline_code.toLowerCase().includes(lower) ||
+          (t.project?.project_name ?? "").toLowerCase().includes(lower)
+      ) ?? []
+    );
+  }, [timelines, searchTerm]);
+
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("project_timelines")
-        .delete()
-        .eq("id", id);
+      const { error } = await supabase.from("project_timelines").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project_timelines"] });
       toast.success("Timeline deleted successfully");
     },
-    onError: () => {
-      toast.error("Failed to delete timeline");
-    },
+    onError: () => toast.error("Failed to delete timeline"),
   });
 
   return (
@@ -80,6 +82,16 @@ export const GanttChart = () => {
           <Plus className="mr-2 h-4 w-4" />
           Set Deadline
         </Button>
+      </div>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by timeline code or project name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       <div className="border rounded-lg">
@@ -97,22 +109,16 @@ export const GanttChart = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
-                  Loading...
-                </TableCell>
+                <TableCell colSpan={6} className="text-center">Loading...</TableCell>
               </TableRow>
-            ) : timelines?.length === 0 ? (
+            ) : filteredTimelines.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
-                  No timelines found
-                </TableCell>
+                <TableCell colSpan={6} className="text-center">No timelines found</TableCell>
               </TableRow>
             ) : (
-              timelines?.map((timeline) => (
+              filteredTimelines.map((timeline) => (
                 <TableRow key={timeline.id}>
-                  <TableCell className="font-medium">
-                    {timeline.timeline_code}
-                  </TableCell>
+                  <TableCell className="font-medium">{timeline.timeline_code}</TableCell>
                   <TableCell>{timeline.project?.project_code || "-"}</TableCell>
                   <TableCell>{timeline.project?.project_name || "-"}</TableCell>
                   <TableCell>{timeline.task_schedules.length} tasks</TableCell>

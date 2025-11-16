@@ -1,7 +1,9 @@
-import { useState } from "react";
+/* ======================  TASKS MANAGEMENT  ====================== */
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
   Table,
@@ -11,21 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash } from "lucide-react";
+import { Plus, Edit, Trash, Search } from "lucide-react";
 import { AddTaskDialog } from "./AddTaskDialog";
 import { EditTaskDialog } from "./EditTaskDialog";
 
-interface Task {
-  name: string;
-  price: number;
-  assigned_to: number | null;
-}
-
-interface Employee {
-  first_name: string;
-  last_name: string;
-}
-
+interface Task { name: string; price: number; assigned_to: number | null; }
 interface ProjectTask {
   id: string;
   task_code: string;
@@ -33,19 +25,14 @@ interface ProjectTask {
   tasks: Task[];
   assigned_to: number | null;
   total_labor: number;
-  project?: {
-    project_name: string;
-    project_code: string;
-  };
-  employee?: {
-    first_name: string;
-    last_name: string;
-  };
+  project?: { project_name: string; project_code: string };
 }
+interface Employee { id: number; first_name: string; last_name: string; }
 
 export const TasksManagement = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editTask, setEditTask] = useState<ProjectTask | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const queryClient = useQueryClient();
 
   const { data: projectTasks, isLoading } = useQuery({
@@ -70,9 +57,21 @@ export const TasksManagement = () => {
         .from("employees")
         .select("id, first_name, last_name");
       if (error) throw error;
-      return data as { id: number; first_name: string; last_name: string }[];
+      return data as Employee[];
     },
   });
+
+  const filteredTasks = useMemo(() => {
+    if (!searchTerm) return projectTasks ?? [];
+    const lower = searchTerm.toLowerCase();
+    return (
+      projectTasks?.filter(
+        (t) =>
+          t.task_code.toLowerCase().includes(lower) ||
+          (t.project?.project_name ?? "").toLowerCase().includes(lower)
+      ) ?? []
+    );
+  }, [projectTasks, searchTerm]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -83,17 +82,11 @@ export const TasksManagement = () => {
       queryClient.invalidateQueries({ queryKey: ["project_tasks"] });
       toast.success("Task deleted successfully");
     },
-    onError: () => {
-      toast.error("Failed to delete task");
-    },
+    onError: () => toast.error("Failed to delete task"),
   });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-PH", {
-      style: "currency",
-      currency: "PHP",
-    }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value);
 
   return (
     <div className="space-y-4">
@@ -103,6 +96,16 @@ export const TasksManagement = () => {
           <Plus className="mr-2 h-4 w-4" />
           Include Task
         </Button>
+      </div>
+
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by task code or project name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10"
+        />
       </div>
 
       <div className="border rounded-lg">
@@ -118,20 +121,16 @@ export const TasksManagement = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-          {isLoading ? (
+            {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
-                  Loading...
-                </TableCell>
+                <TableCell colSpan={6} className="text-center">Loading...</TableCell>
               </TableRow>
-            ) : projectTasks?.length === 0 ? (
+            ) : filteredTasks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
-                  No tasks found
-                </TableCell>
+                <TableCell colSpan={6} className="text-center">No tasks found</TableCell>
               </TableRow>
             ) : (
-              projectTasks?.map((task) => (
+              filteredTasks.map((task) => (
                 <TableRow key={task.id}>
                   <TableCell className="font-medium">{task.task_code}</TableCell>
                   <TableCell>{task.project?.project_code || "-"}</TableCell>
