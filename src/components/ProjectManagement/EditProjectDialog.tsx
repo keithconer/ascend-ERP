@@ -12,6 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Project {
   id: string;
@@ -20,6 +27,7 @@ interface Project {
   description: string | null;
   project_cost: number;
   estimated_end_date: string | null;
+  status: string;
 }
 
 interface EditProjectDialogProps {
@@ -31,11 +39,13 @@ interface EditProjectDialogProps {
 export const EditProjectDialog = ({ project, open, onOpenChange }: EditProjectDialogProps) => {
   const [projectName, setProjectName] = useState(project.project_name);
   const [description, setDescription] = useState(project.description || "");
+  const [status, setStatus] = useState(project.status);
   const queryClient = useQueryClient();
 
   useEffect(() => {
     setProjectName(project.project_name);
     setDescription(project.description || "");
+    setStatus(project.status);
   }, [project]);
 
   const updateMutation = useMutation({
@@ -45,6 +55,7 @@ export const EditProjectDialog = ({ project, open, onOpenChange }: EditProjectDi
         .update({
           project_name: projectName,
           description: description || null,
+          status,
         })
         .eq("id", project.id);
       if (error) throw error;
@@ -99,6 +110,19 @@ export const EditProjectDialog = ({ project, open, onOpenChange }: EditProjectDi
               placeholder="Enter project description"
               rows={4}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="status">Status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="settled">Settled</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex justify-end gap-2">

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client'; // Adjust path as necessary
+import { supabase } from '@/integrations/supabase/client';
 
 interface PayableSummary {
   id: number;
@@ -65,6 +65,18 @@ const AccountsPayable: React.FC = () => {
 
         const totalApprovedPOAmount = approvedPOs?.reduce((acc, po) => acc + (po.total ?? 0), 0) || 0;
 
+        // Fetch pending projects total cost
+        const { data: pendingProjects, error: projectError } = await supabase
+          .from('projects')
+          .select('project_cost, status')
+          .eq('status', 'pending');
+
+        if (projectError) {
+          console.error('Error fetching pending projects total:', projectError.message);
+        }
+
+        const totalProjectCost = pendingProjects?.reduce((acc, proj) => acc + (proj.project_cost ?? 0), 0) || 0;
+
         const todayStr = formatDate(now);
 
         const summaryData: PayableSummary[] = [
@@ -84,6 +96,14 @@ const AccountsPayable: React.FC = () => {
             amount: totalApprovedPOAmount,
             status: 'Pending',
           },
+          {
+            id: 3,
+            invoice_id: generateInvoiceId(),
+            date: todayStr,
+            description: 'Total Project Cost',
+            amount: totalProjectCost,
+            status: 'Pending',
+          },
         ];
 
         setPayableSummary(summaryData);
@@ -100,36 +120,36 @@ const AccountsPayable: React.FC = () => {
   return (
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Accounts Payable Summary</h2>
-      <p className="mb-6">Summary of total payroll and approved purchase orders for the current month.</p>
+      <p className="mb-6">Summary of total payroll, approved purchase orders, and pending project costs for the current month.</p>
 
       {loading ? (
         <p>Loading...</p>
       ) : (
-        <table className="min-w-full table-auto border-collapse border border-gray-300 mb-4">
+        <table className="min-w-full table-auto border-collapse border border-border mb-4">
           <thead>
-            <tr className="bg-gray-100">
-              <th className="border border-gray-300 px-4 py-2 text-center">Date</th>
-              <th className="border border-gray-300 px-4 py-2 text-center">Invoice ID</th>
-              <th className="border border-gray-300 px-4 py-2">Description</th>
-              <th className="border border-gray-300 px-4 py-2 text-right">Amount</th>
-              <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
+            <tr className="bg-muted">
+              <th className="border border-border px-4 py-2 text-center">Date</th>
+              <th className="border border-border px-4 py-2 text-center">Invoice ID</th>
+              <th className="border border-border px-4 py-2">Description</th>
+              <th className="border border-border px-4 py-2 text-right">Amount</th>
+              <th className="border border-border px-4 py-2 text-center">Status</th>
             </tr>
           </thead>
           <tbody>
             {payableSummary.length === 0 ? (
               <tr>
-                <td colSpan={5} className="border border-gray-300 px-4 py-2 text-center">
+                <td colSpan={5} className="border border-border px-4 py-2 text-center">
                   No accounts payable summary data available.
                 </td>
               </tr>
             ) : (
               payableSummary.map(({ id, invoice_id, date, description, amount, status }) => (
                 <tr key={id}>
-                  <td className="border border-gray-300 px-4 py-2 text-center">{date}</td>
-                  <td className="border border-gray-300 px-4 py-2 text-center">{invoice_id}</td>
-                  <td className="border border-gray-300 px-4 py-2">{description}</td>
-                  <td className="border border-gray-300 px-4 py-2 text-right">₱{amount.toFixed(2)}</td>
-                  <td className="border border-gray-300 px-4 py-2 text-center">{status}</td>
+                  <td className="border border-border px-4 py-2 text-center">{date}</td>
+                  <td className="border border-border px-4 py-2 text-center">{invoice_id}</td>
+                  <td className="border border-border px-4 py-2">{description}</td>
+                  <td className="border border-border px-4 py-2 text-right">₱{amount.toFixed(2)}</td>
+                  <td className="border border-border px-4 py-2 text-center">{status}</td>
                 </tr>
               ))
             )}

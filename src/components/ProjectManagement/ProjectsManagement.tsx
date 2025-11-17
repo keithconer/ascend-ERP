@@ -1,9 +1,7 @@
-/* ======================  PROJECT MANAGEMENT  ====================== */
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";               // <-- NEW
 import { toast } from "sonner";
 import {
   Table,
@@ -13,9 +11,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Edit, Trash, Search } from "lucide-react";   // <-- Search icon
+import { Plus, Edit, Trash } from "lucide-react";
 import { AddProjectDialog } from "./AddProjectDialog";
 import { EditProjectDialog } from "./EditProjectDialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Project {
   id: string;
@@ -24,13 +29,13 @@ interface Project {
   description: string | null;
   project_cost: number;
   estimated_end_date: string | null;
+  status: string;
   created_at: string;
 }
 
 export const ProjectsManagement = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");               // <-- NEW
   const queryClient = useQueryClient();
 
   const { data: projects, isLoading } = useQuery({
@@ -45,19 +50,6 @@ export const ProjectsManagement = () => {
     },
   });
 
-  /* ----- FILTER LOGIC (project_name + project_code) ----- */
-  const filteredProjects = useMemo(() => {
-    if (!searchTerm) return projects ?? [];
-    const lower = searchTerm.toLowerCase();
-    return (
-      projects?.filter(
-        (p) =>
-          p.project_name.toLowerCase().includes(lower) ||
-          p.project_code.toLowerCase().includes(lower)
-      ) ?? []
-    );
-  }, [projects, searchTerm]);
-
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("projects").delete().eq("id", id);
@@ -67,11 +59,34 @@ export const ProjectsManagement = () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       toast.success("Project deleted successfully");
     },
-    onError: () => toast.error("Failed to delete project"),
+    onError: () => {
+      toast.error("Failed to delete project");
+    },
   });
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(value);
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase
+        .from("projects")
+        .update({ status })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Project status updated successfully");
+    },
+    onError: () => {
+      toast.error("Failed to update project status");
+    },
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+    }).format(value);
+  };
 
   return (
     <div className="space-y-4">
@@ -83,17 +98,6 @@ export const ProjectsManagement = () => {
         </Button>
       </div>
 
-      {/* ---------- SEARCH BAR ---------- */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search by project name or code..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
@@ -103,26 +107,29 @@ export const ProjectsManagement = () => {
               <TableHead>Description</TableHead>
               <TableHead>Project Cost</TableHead>
               <TableHead>Estimated End Date</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
+                <TableCell colSpan={7} className="text-center">
                   Loading...
                 </TableCell>
               </TableRow>
-            ) : filteredProjects.length === 0 ? (
+            ) : projects?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
+                <TableCell colSpan={7} className="text-center">
                   No projects found
                 </TableCell>
               </TableRow>
             ) : (
-              filteredProjects.map((project) => (
+              projects?.map((project) => (
                 <TableRow key={project.id}>
-                  <TableCell className="font-medium">{project.project_code}</TableCell>
+                  <TableCell className="font-medium">
+                    {project.project_code}
+                  </TableCell>
                   <TableCell>{project.project_name}</TableCell>
                   <TableCell>{project.description || "-"}</TableCell>
                   <TableCell>{formatCurrency(project.project_cost)}</TableCell>
@@ -130,6 +137,22 @@ export const ProjectsManagement = () => {
                     {project.estimated_end_date
                       ? new Date(project.estimated_end_date).toLocaleDateString()
                       : "-"}
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={project.status || "pending"}
+                      onValueChange={(value) =>
+                        updateStatusMutation.mutate({ id: project.id, status: value })
+                      }
+                    >
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="settled">Settled</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
