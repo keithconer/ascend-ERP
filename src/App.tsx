@@ -10,10 +10,11 @@ import InventoryManagement from "./pages/inventory/InventoryManagement";
 import ProcurementPage from "./pages/Procurement/ProcurementPage";
 import HumanResourcePage from "./pages/humanresources/HumanResourcePage";  
 import FinanceManagementPage from "./pages/finance/FinanceManagement";
-import NotFound from "./pages/NotFound";
+import BusinessIntelligencePage from "./pages/reports&business_intelligence/BusinessIntelligencePage";
 import SalesPage from "./pages/sales/SalesPage";
 import CustomerServicePage from "./pages/customerservice/CustomerServicePage";
 import SupplyChainPage from "./pages/supplyChain/SupplyChainPage";
+import NotFound from "./pages/NotFound";
 import { ERPLayout } from "@/components/erp/ERPLayout";
 
 // Imports for the Project Management Module
@@ -61,6 +62,16 @@ const App = () => (
               </ERPLayout>
             }
           />
+          
+          <Route
+            path="/reports"  
+            element={
+              <ERPLayout>
+                <BusinessIntelligencePage />  
+              </ERPLayout>
+            }
+          />  
+
           <Route
             path="/sales"  // The /sales route should render SalesPage
             element={
