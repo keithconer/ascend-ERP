@@ -16,6 +16,7 @@ import CustomerServicePage from "./pages/customerservice/CustomerServicePage";
 import SupplyChainPage from "./pages/supplyChain/SupplyChainPage";
 import NotFound from "./pages/NotFound";
 import { ERPLayout } from "@/components/erp/ERPLayout";
+import EcommercePage from "./pages/Ecommerce/ecommercepage";
 
 // Imports for the Project Management Module
 import ProjectManagementPage from "./pages/ProjectManagement/ProjectManagementPage";
@@ -109,7 +110,14 @@ const App = () => (
             }
           />
            
-
+           <Route
+            path="/ecommerce"  
+            element={
+              <ERPLayout>
+                <EcommercePage />  
+              </ERPLayout>
+            }
+          />
         
 
 
