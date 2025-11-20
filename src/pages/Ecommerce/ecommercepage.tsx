@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShoppingCart, CreditCard, Receipt, Store } from "lucide-react";
-import { Shop } from "@/components/ecommerce/Shop";
-import { Cart } from "@/components/ecommerce/Cart";
-import { Payment } from "@/components/ecommerce/Payment";
-import { Receipts } from "@/components/ecommerce/Receipts";
+import { Shop } from "@/components/Ecommerce/Shop";
+import { Cart } from "@/components/Ecommerce/Cart";
+import { Payment } from "@/components/Ecommerce/Payment";
+import { Receipts } from "@/components/Ecommerce/Receipts";
 import { Badge } from "@/components/ui/badge";
 
 const EcommercePage = () => {
