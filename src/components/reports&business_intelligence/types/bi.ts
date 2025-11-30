@@ -8,9 +8,11 @@ export type ModuleKey =
   | "procurement" 
   | "supply_chain" 
   | "finance" 
+  | "ecommerce"
+  | "business_intelligence"
+  | "sales"
   | "project_management" 
-  | "hr" 
-  | "sales";
+  | "hr";
 
 export interface ModuleInfo {
   columns: any;
@@ -32,6 +34,19 @@ export interface TableConfig {
     table: string;
     on: string;
     select: string[];
+  }[];
+  subtables?: {
+    name: string;
+    table: string;
+    columns: {
+      display: string[];
+      aggregate?: string[];
+    };
+    joins?: {
+      table: string;
+      on: string;
+      select: string[];
+    }[];
   }[];
 }
 
@@ -139,3 +154,24 @@ export interface FetchResult {
   count: number;
   aggregations?: Record<string, any>;
 }
+
+// ==========================
+// Date extractor helper
+// ==========================
+function extractDate(record: any) {
+  const fields = [
+    "updated_at",
+    "created_at",
+    "order_date",
+    "invoice_date",
+    "start_date",
+    "hire_date",
+  ];
+
+  for (const f of fields) {
+    if (record[f]) return record[f].split("T")[0];
+  }
+
+  return new Date().toISOString().split("T")[0]; // fallback
+}
+export { extractDate };

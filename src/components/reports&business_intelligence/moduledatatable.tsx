@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Download, Eye, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ModuleKey, DataRow } from "@/components/reports&business_intelligence/types/bi";
 import { fetchModuleData, exportModuleData } from "@/components/reports&business_intelligence/services/dataAggregator";
 import { MODULE_INFO } from "@/components/reports&business_intelligence/services/moduleMapping";
@@ -18,6 +19,7 @@ interface ModuleDataTableProps {
   showExport?: boolean;
   showRefresh?: boolean;
   onRowClick?: (row: DataRow) => void;
+  subtable?: string;
 }
 
 export const ModuleDataTable = ({
@@ -26,17 +28,68 @@ export const ModuleDataTable = ({
   showExport = true,
   showRefresh = true,
   onRowClick,
+  subtable,
 }: ModuleDataTableProps) => {
   const [data, setData] = useState<DataRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [aggregations, setAggregations] = useState<Record<string, any>>({});
   const [recordCount, setRecordCount] = useState(0);
+  const navigate = useNavigate();
 
   const moduleInfo = MODULE_INFO[module];
 
+  // Map modules to their navigation paths
+  const getModulePath = (moduleKey: ModuleKey): string => {
+    const pathMap: Record<ModuleKey, string> = {
+      inventory: "/inventory",
+      customer_service: "/helpdesk",
+      procurement: "/procurement",
+      supply_chain: "/supply-chain",
+      finance: "/finance",
+      ecommerce: "/ecommerce",
+      business_intelligence: "/reports",
+      sales: "/sales",
+      project_management: "/projects",
+      hr: "/hr",
+      all: "/",
+    };
+    return pathMap[moduleKey] || "/";
+  };
+
+  const handleViewClick = (row: DataRow) => {
+    // For "all" module view, check if row has a module name and route accordingly
+    if (module === "all" && row.module) {
+      const moduleName = String(row.module).toLowerCase();
+      let path = "/";
+      
+      // Map module names to paths
+      if (moduleName.includes("inventory")) path = "/inventory";
+      else if (moduleName.includes("customer service")) path = "/helpdesk";
+      else if (moduleName.includes("procurement")) path = "/procurement";
+      else if (moduleName.includes("supply chain")) path = "/supply-chain";
+      else if (moduleName.includes("finance")) path = "/finance";
+      else if (moduleName.includes("e-commerce") || moduleName.includes("ecommerce")) path = "/ecommerce";
+      else if (moduleName.includes("sales")) path = "/sales";
+      else if (moduleName.includes("project")) path = "/projects";
+      else if (moduleName.includes("human resources") || moduleName.includes("hr")) path = "/hr";
+      
+      navigate(path);
+      toast.success(`Navigating to ${row.module}`, {
+        description: "View the full details in the module page",
+      });
+    } else {
+      // For specific module views, navigate to that module's page
+      const path = getModulePath(module);
+      navigate(path);
+      toast.success(`Navigating to ${moduleInfo.name}`, {
+        description: "View the full details in the module page",
+      });
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
-    const result = await fetchModuleData(module, { limit });
+    const result = await fetchModuleData(module, { limit, subtable });
 
     if (result.error) {
       toast.error(`Failed to load ${moduleInfo.name} data`, {
@@ -58,8 +111,10 @@ export const ModuleDataTable = ({
   };
 
   useEffect(() => {
+    console.log("ModuleDataTable: limit changed to", limit, "subtable:", subtable);
     loadData();
-  }, [module, limit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [module, limit, subtable]);
 
   const handleExport = () => {
     try {
@@ -117,7 +172,7 @@ export const ModuleDataTable = ({
     
     // Format currency
     if (["amount", "value", "salary", "budget", "total_amount"].includes(key)) {
-      return typeof value === "number" ? `$${value.toLocaleString()}` : value;
+      return typeof value === "number" ? `₱${value.toLocaleString()}` : value;
     }
     
     // Format status as badge
@@ -191,7 +246,7 @@ export const ModuleDataTable = ({
                   {col.replace(/_/g, " ").toUpperCase()}:
                 </span>
                 <span className="ml-2 text-foreground font-semibold">
-                  {stats.sum ? new Intl.NumberFormat().format(stats.sum) : stats.count}
+                  
                 </span>
               </div>
             ))}
@@ -242,7 +297,15 @@ export const ModuleDataTable = ({
                     </TableCell>
                   ))}
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" className="gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewClick(row);
+                      }}
+                    >
                       <Eye className="h-4 w-4" />
                       View
                     </Button>
