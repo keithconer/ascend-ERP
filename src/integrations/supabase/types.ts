@@ -771,178 +771,6 @@ export type Database = {
           },
         ]
       }
-      m9_project_employees: {
-        Row: {
-          assigned_at: string | null
-          employee_id: number | null
-          id: number
-          project_id: number | null
-        }
-        Insert: {
-          assigned_at?: string | null
-          employee_id?: number | null
-          id?: never
-          project_id?: number | null
-        }
-        Update: {
-          assigned_at?: string | null
-          employee_id?: number | null
-          id?: never
-          project_id?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "m9_project_employees_employee_id_fkey"
-            columns: ["employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "m9_project_employees_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "m9_projects"
-            referencedColumns: ["project_id"]
-          },
-        ]
-      }
-      m9_project_tasks: {
-        Row: {
-          assigned_employee_id: number | null
-          created_at: string | null
-          description: string | null
-          end_date: string | null
-          id: number
-          project_id: number | null
-          start_date: string | null
-          task_id: number
-          updated_at: string | null
-        }
-        Insert: {
-          assigned_employee_id?: number | null
-          created_at?: string | null
-          description?: string | null
-          end_date?: string | null
-          id?: never
-          project_id?: number | null
-          start_date?: string | null
-          task_id: number
-          updated_at?: string | null
-        }
-        Update: {
-          assigned_employee_id?: number | null
-          created_at?: string | null
-          description?: string | null
-          end_date?: string | null
-          id?: never
-          project_id?: number | null
-          start_date?: string | null
-          task_id?: number
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "m9_project_tasks_assigned_employee_id_fkey"
-            columns: ["assigned_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "m9_project_tasks_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "m9_projects"
-            referencedColumns: ["project_id"]
-          },
-          {
-            foreignKeyName: "m9_project_tasks_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "m9_tasks"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      m9_project_type_assigned: {
-        Row: {
-          assigned_at: string | null
-          assigned_id: number
-          employee_id: number
-          project_type_id: number | null
-        }
-        Insert: {
-          assigned_at?: string | null
-          assigned_id?: number
-          employee_id: number
-          project_type_id?: number | null
-        }
-        Update: {
-          assigned_at?: string | null
-          assigned_id?: number
-          employee_id?: number
-          project_type_id?: number | null
-        }
-        Relationships: []
-      }
-      m9_projects: {
-        Row: {
-          created_at: string | null
-          estimated_cost: number | null
-          expected_end_date: string | null
-          project_code: string
-          project_id: number
-          project_name: string
-          status: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          estimated_cost?: number | null
-          expected_end_date?: string | null
-          project_code: string
-          project_id?: never
-          project_name: string
-          status?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          estimated_cost?: number | null
-          expected_end_date?: string | null
-          project_code?: string
-          project_id?: never
-          project_name?: string
-          status?: string | null
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      m9_tasks: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          id: number
-          task_code: string
-          task_name: string
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          id?: never
-          task_code: string
-          task_name: string
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          id?: never
-          task_code?: string
-          task_name?: string
-        }
-        Relationships: []
-      }
       payroll: {
         Row: {
           created_at: string | null
@@ -989,6 +817,166 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      project_resources: {
+        Row: {
+          created_at: string | null
+          equipments: Json
+          id: string
+          project_id: string
+          resource_code: string
+          total_resources: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          equipments?: Json
+          id?: string
+          project_id: string
+          resource_code: string
+          total_resources?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          equipments?: Json
+          id?: string
+          project_id?: string
+          resource_code?: string
+          total_resources?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_resources_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_tasks: {
+        Row: {
+          assigned_to: number | null
+          created_at: string | null
+          id: string
+          project_id: string
+          task_code: string
+          tasks: Json
+          total_labor: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: number | null
+          created_at?: string | null
+          id?: string
+          project_id: string
+          task_code: string
+          tasks?: Json
+          total_labor?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: number | null
+          created_at?: string | null
+          id?: string
+          project_id?: string
+          task_code?: string
+          tasks?: Json
+          total_labor?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_timelines: {
+        Row: {
+          created_at: string | null
+          estimated_end: string | null
+          id: string
+          project_id: string
+          task_schedules: Json
+          timeline_code: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          estimated_end?: string | null
+          id?: string
+          project_id: string
+          task_schedules?: Json
+          timeline_code: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          estimated_end?: string | null
+          id?: string
+          project_id?: string
+          task_schedules?: Json
+          timeline_code?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_timelines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          estimated_end_date: string | null
+          id: string
+          project_code: string
+          project_cost: number | null
+          project_name: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          estimated_end_date?: string | null
+          id?: string
+          project_code: string
+          project_cost?: number | null
+          project_name: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          estimated_end_date?: string | null
+          id?: string
+          project_code?: string
+          project_cost?: number | null
+          project_name?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       purchase_order_items: {
         Row: {
@@ -1298,6 +1286,7 @@ export type Database = {
           customer_id: string | null
           delivery_status: string | null
           demand_quantity: number
+          ecommerce_order_id: string | null
           id: string
           lead_id: number | null
           order_date: string
@@ -1305,6 +1294,7 @@ export type Database = {
           payment_terms: string | null
           product_id: string | null
           quotation_id: number | null
+          receipt_id: string | null
           total_amount: number
           updated_at: string | null
         }
@@ -1314,6 +1304,7 @@ export type Database = {
           customer_id?: string | null
           delivery_status?: string | null
           demand_quantity: number
+          ecommerce_order_id?: string | null
           id?: string
           lead_id?: number | null
           order_date?: string
@@ -1321,6 +1312,7 @@ export type Database = {
           payment_terms?: string | null
           product_id?: string | null
           quotation_id?: number | null
+          receipt_id?: string | null
           total_amount: number
           updated_at?: string | null
         }
@@ -1330,6 +1322,7 @@ export type Database = {
           customer_id?: string | null
           delivery_status?: string | null
           demand_quantity?: number
+          ecommerce_order_id?: string | null
           id?: string
           lead_id?: number | null
           order_date?: string
@@ -1337,6 +1330,7 @@ export type Database = {
           payment_terms?: string | null
           product_id?: string | null
           quotation_id?: number | null
+          receipt_id?: string | null
           total_amount?: number
           updated_at?: string | null
         }
@@ -1378,10 +1372,61 @@ export type Database = {
           },
         ]
       }
+      shopping_cart: {
+        Row: {
+          contact_info: string | null
+          created_at: string | null
+          customer_name: string
+          id: string
+          items: Json
+          lead_id: number | null
+          shop_id: string
+          source_type: string
+          status: string
+          subtotal: number
+          updated_at: string | null
+        }
+        Insert: {
+          contact_info?: string | null
+          created_at?: string | null
+          customer_name: string
+          id?: string
+          items?: Json
+          lead_id?: number | null
+          shop_id: string
+          source_type: string
+          status?: string
+          subtotal?: number
+          updated_at?: string | null
+        }
+        Update: {
+          contact_info?: string | null
+          created_at?: string | null
+          customer_name?: string
+          id?: string
+          items?: Json
+          lead_id?: number | null
+          shop_id?: string
+          source_type?: string
+          status?: string
+          subtotal?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shopping_cart_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["lead_id"]
+          },
+        ]
+      }
       stock_transactions: {
         Row: {
           created_at: string
           created_by: string | null
+          ecommerce_order_id: string | null
           expiration_date: string | null
           id: string
           item_id: string
@@ -1396,6 +1441,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          ecommerce_order_id?: string | null
           expiration_date?: string | null
           id?: string
           item_id: string
@@ -1410,6 +1456,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          ecommerce_order_id?: string | null
           expiration_date?: string | null
           id?: string
           item_id?: string
@@ -1592,11 +1639,17 @@ export type Database = {
       generate_issue_id_unique: { Args: never; Returns: string }
       generate_order_id: { Args: never; Returns: string }
       generate_plan_id: { Args: never; Returns: string }
+      generate_project_code: { Args: never; Returns: string }
+      generate_receipt_id: { Args: never; Returns: string }
+      generate_resource_code: { Args: never; Returns: string }
       generate_route_id: { Args: never; Returns: string }
+      generate_shop_id: { Args: never; Returns: string }
       generate_solution_id: { Args: never; Returns: string }
       generate_solution_id_unique: { Args: never; Returns: string }
+      generate_task_code: { Args: never; Returns: string }
       generate_ticket_id: { Args: never; Returns: string }
       generate_ticket_id_unique: { Args: never; Returns: string }
+      generate_timeline_code: { Args: never; Returns: string }
       generate_unique_id: {
         Args: { column_name: string; prefix: string; table_name: string }
         Returns: string
