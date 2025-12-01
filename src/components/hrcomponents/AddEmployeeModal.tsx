@@ -30,6 +30,37 @@ const TextInput: React.FC<{
   </div>
 )
 
+const NumericInput: React.FC<{
+  id: string
+  label: string
+  placeholder: string
+  value: string
+  onChange: (value: string) => void
+}> = ({ id, label, placeholder, value, onChange }) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value.replace(/[^0-9]/g, "")
+    onChange(newValue)
+  }
+
+  return (
+    <div>
+      <label htmlFor={id} className="block text-sm font-semibold">
+        {label}
+      </label>
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        placeholder={placeholder}
+        className="input input-bordered w-full"
+        value={value}
+        onChange={handleChange}
+      />
+    </div>
+  )
+}
+
 const DateInput: React.FC<{
   id: string
   label: string
@@ -212,7 +243,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
             value={position}
             onChange={setPosition}
           />
-          <TextInput
+          <NumericInput
             id="phoneNumber"
             label="Phone Number"
             placeholder="Enter Phone Number"
@@ -251,14 +282,14 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
               </SelectContent>
             </Select>
           </div>
-          <TextInput
+          <NumericInput
             id="ratePerDay"
             label="Rate Per Day (₱)"
             placeholder="Enter Rate Per Day in Pesos"
             value={ratePerDay}
             onChange={setRatePerDay}
           />
-          <TextInput
+          <NumericInput
             id="workDaysPerWeek"
             label="Work Days Per Week"
             placeholder="Enter Work Days Per Week"
