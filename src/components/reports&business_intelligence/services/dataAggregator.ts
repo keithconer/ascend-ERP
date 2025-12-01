@@ -16,13 +16,17 @@ export const fetchModuleData = async (
     orderBy?: string;
     ascending?: boolean;
     filters?: Record<string, any>;
+    subtable?: string;
   } = {}
 ): Promise<FetchResult> => {
-  const { limit = 10, orderBy = "id", ascending = false, filters = {} } = options;
+  const { limit, orderBy = "id", ascending = false, filters = {}, subtable } = options;
+  const actualLimit = limit !== undefined ? limit : 10;
+
+  console.log("fetchModuleData called with moduleKey:", moduleKey, "limit:", limit, "subtable:", subtable, "actualLimit:", actualLimit);
 
   // Special handling for "all" modules view
   if (moduleKey === "all") {
-    return fetchAllModulesActivity();
+    return fetchAllModulesActivity(limit);
   }
 
   const config = MODULE_TABLE_MAPPING[moduleKey];
@@ -35,10 +39,27 @@ export const fetchModuleData = async (
   }
 
   try {
+    // Check if subtable is requested
+    let tableConfig = config;
+    let tableToQuery = config.primary;
+    
+    if (subtable && config.subtables) {
+      const subtableConfig = config.subtables.find(st => st.table === subtable);
+      if (subtableConfig) {
+        tableToQuery = subtable;
+        // Create a temporary config-like object for the subtable
+        tableConfig = {
+          primary: subtable,
+          columns: subtableConfig.columns,
+          joins: subtableConfig.joins || [],
+        };
+      }
+    }
+
     // Build the base query
     let query: any = supabase
-      .from<any, any>(config.primary)
-      .select(config.columns.display.join(", "), { count: "exact" });
+      .from<any, any>(tableToQuery)
+      .select(tableConfig.columns.display.join(", "), { count: "exact" });
 
     // Apply filters
     Object.entries(filters).forEach(([key, value]) => {
@@ -48,7 +69,7 @@ export const fetchModuleData = async (
     });
 
     // Apply ordering and limit
-    query = query.order(orderBy, { ascending }).limit(limit);
+    query = query.order(orderBy, { ascending }).limit(actualLimit);
 
     const { data, error, count } = await query;
 
@@ -87,45 +108,60 @@ export const fetchModuleData = async (
  * Fetch activity summary from all modules
  * Creates a unified view of recent activities across the ERP system
  */
-export const fetchAllModulesActivity = async (): Promise<FetchResult> => {
+export const fetchAllModulesActivity = async (limit?: number): Promise<FetchResult> => {
   const activeModules = getActiveModules();
   const activities: DataRow[] = [];
 
+  console.log("fetchAllModulesActivity called with limit:", limit);
+
   try {
-    // Fetch recent records from each module
+    // Fetch recent records from each module with actual columns
     for (const moduleKey of activeModules) {
       const config = MODULE_TABLE_MAPPING[moduleKey];
       const moduleInfo = MODULE_INFO[moduleKey];
+      
+      // Get display columns to fetch relevant data
+      const columnsToSelect = config.columns.display.slice(0, 10).join(", ");
 
       const { data, count } = await supabase
         .from<any, any>(config.primary)
-        .select("id", { count: "exact" })
+        .select(columnsToSelect, { count: "exact" })
         .order("id", { ascending: false })
-        .limit(5);
+        .limit(10);
 
       if (data && data.length > 0) {
-        data.forEach((record) => {
+        data.forEach((record: any) => {
+          // Extract status from various possible column names
+          const status = record.status || record.delivery_status || record.payment_status || "Pending";
+          
+          // Extract date from various possible column names
+          let date = record.created_at || record.order_date || record.updated_at || new Date().toISOString();
+          if (typeof date === 'string' && date.includes('T')) {
+            date = date.split('T')[0];
+          }
+
           activities.push({
             id: `${moduleKey}-${record.id}`,
             module: moduleInfo.name,
             type: `${config.primary} record`,
-            status: "Completed",
-            date: new Date().toISOString().split("T")[0],
+            status: String(status).charAt(0).toUpperCase() + String(status).slice(1),
+            date: date,
             records: count || 0,
           });
         });
       }
     }
 
-    // Sort by id descending (most recent IDs typically higher)
+    // Sort by date descending (most recent first)
     activities.sort((a, b) => {
-      const aId = parseInt(a.id.split('-')[1]) || 0;
-      const bId = parseInt(b.id.split('-')[1]) || 0;
-      return bId - aId;
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
+    // If limit is undefined, return all; otherwise limit the results
+    const displayData = limit !== undefined ? activities.slice(0, limit) : activities;
+
     return {
-      data: activities.slice(0, 20), // Return top 20 most recent
+      data: displayData,
       error: null,
       count: activities.length,
     };
@@ -165,33 +201,6 @@ const computeAggregations = (data: DataRow[], columns: string[]): Record<string,
 };
 
 /**
- * Fetch aggregated data across multiple modules
- * Useful for cross-module reports and dashboards
- */
-export const fetchAggregatedReport = async (
-  config: ReportConfig
-): Promise<AggregatedData[]> => {
-  const results: AggregatedData[] = [];
-
-  for (const moduleKey of config.modules) {
-    const { data, count, aggregations } = await fetchModuleData(moduleKey, {
-      limit: 100,
-      filters: config.filters,
-    });
-
-    results.push({
-      module: MODULE_INFO[moduleKey].name,
-      count,
-      lastUpdated: new Date().toISOString(),
-      summary: aggregations || {},
-      details: data,
-    });
-  }
-
-  return results;
-};
-
-/**
  * Export data for download
  * Converts module data to CSV format
  */
@@ -220,33 +229,130 @@ export const exportModuleData = (data: DataRow[], moduleKey: ModuleKey): string 
 };
 
 /**
- * Fetch summary statistics for a module
- * Returns key metrics like total records, recent activity, etc.
+ * Fetch metrics data for the BI dashboard
+ * Calculates total revenue, active orders, inventory items, and total customers
  */
-export const fetchModuleSummary = async (
-  moduleKey: ModuleKey
-): Promise<Record<string, any>> => {
-  const config = MODULE_TABLE_MAPPING[moduleKey];
-  if (!config) return {};
-
+export const fetchMetricsData = async (): Promise<{
+  totalRevenue: number;
+  activeOrders: number;
+  inventoryItems: number;
+  totalCustomers: number;
+  error: string | null;
+}> => {
   try {
-    const { count } = await supabase
-      .from<any, any>(config.primary)
+    // Fetch total revenue from sales_orders with completed delivery status
+    const { data: orderData, count: completedOrderCount } = await supabase
+      .from("sales_orders")
+      .select("total_amount", { count: "exact" })
+      .eq("delivery_status", "complete");
+
+    const totalRevenue = orderData?.reduce((sum: number, order: any) => sum + (order.total_amount || 0), 0) || 0;
+
+    // Fetch all orders count (not just completed)
+    const { count: allOrdersCount } = await supabase
+      .from("sales_orders")
       .select("*", { count: "exact", head: true });
 
-    const { data: recentData } = await supabase
-      .from<any, any>(config.primary)
-      .select("id")
-      .order("id", { ascending: false })
-      .limit(1);
+    // Fetch inventory items count
+    const { count: inventoryCount } = await supabase
+      .from("inventory")
+      .select("*", { count: "exact", head: true });
+
+    // Fetch customers count
+    const { count: customerCount } = await supabase
+      .from("customers")
+      .select("*", { count: "exact", head: true });
+
+    console.log("Metrics fetched:", {
+      totalRevenue,
+      activeOrders: allOrdersCount,
+      completedOrders: completedOrderCount,
+      inventoryItems: inventoryCount,
+      totalCustomers: customerCount,
+    });
 
     return {
-      totalRecords: count || 0,
-      lastActivity: recentData?.[0]?.id || null,
-      tableName: config.primary,
+      totalRevenue,
+      activeOrders: allOrdersCount || 0,
+      inventoryItems: inventoryCount || 0,
+      totalCustomers: customerCount || 0,
+      error: null,
     };
   } catch (err) {
-    console.error(`Error fetching summary for ${moduleKey}:`, err);
-    return {};
+    console.error("Error fetching metrics:", err);
+    return {
+      totalRevenue: 0,
+      activeOrders: 0,
+      inventoryItems: 0,
+      totalCustomers: 0,
+      error: String(err),
+    };
+  }
+};
+
+/**
+ * Fetch stock transactions count for inventory module
+ */
+export const fetchStockTransactionsCount = async (): Promise<number> => {
+  try {
+    const { count } = await supabase
+      .from("stock_transactions")
+      .select("*", { count: "exact", head: true });
+
+    console.log("Stock transactions count fetched:", count);
+    return count || 0;
+  } catch (err) {
+    console.error("Error fetching stock transactions count:", err);
+    return 0;
+  }
+};
+
+/**
+ * Fetch customer service metrics from customer_issues table
+ */
+export const fetchCustomerServiceMetrics = async (): Promise<{
+  totalIssues: number;
+  pendingIssues: number;
+  resolvedIssues: number;
+  error: string | null;
+}> => {
+  try {
+    // Fetch total issues count
+    const { count: totalCount } = await supabase
+      .from("customer_issues")
+      .select("*", { count: "exact", head: true });
+
+    // Fetch pending issues count
+    const { count: pendingCount } = await supabase
+      .from("customer_issues")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending");
+
+    // Fetch resolved issues count
+    const { count: resolvedCount } = await supabase
+      .from("customer_issues")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "resolved");
+
+    console.log("Customer service metrics fetched:", {
+      totalIssues: totalCount,
+      pendingIssues: pendingCount,
+      resolvedIssues: resolvedCount,
+    });
+
+    return {
+      totalIssues: totalCount || 0,
+      pendingIssues: pendingCount || 0,
+      resolvedIssues: resolvedCount || 0,
+      error: null,
+    };
+  } catch (err) {
+    console.error("Error fetching customer service metrics:", err);
+    return {
+      totalIssues: 0,
+      pendingIssues: 0,
+      resolvedIssues: 0,
+      error: String(err),
+    };
   }
 };

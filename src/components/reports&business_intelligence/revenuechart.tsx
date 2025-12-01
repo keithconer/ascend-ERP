@@ -22,7 +22,7 @@ export const RevenueChart = () => {
         <YAxis 
           stroke="hsl(var(--muted-foreground))"
           fontSize={12}
-          tickFormatter={(value) => `$${value / 1000}k`}
+          tickFormatter={(value) => `₱${value / 1000}k`}
         />
         <Tooltip 
           contentStyle={{

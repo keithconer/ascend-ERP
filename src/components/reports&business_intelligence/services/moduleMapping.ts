@@ -52,6 +52,22 @@ export const MODULE_INFO: Record<ModuleKey, ModuleInfo> = {
       color: "hsl(120, 100%, 40%)",
       columns: undefined
   },
+  ecommerce: {
+      id: "ecommerce",
+      name: "E-Commerce",
+      description: "Online store, shopping carts, and orders",
+      icon: "shopping-bag",
+      color: "hsl(320, 100%, 50%)",
+      columns: undefined
+  },
+  business_intelligence: {
+      id: "business_intelligence",
+      name: "Business Intelligence",
+      description: "Reports, analytics, and business insights",
+      icon: "bar-chart-2",
+      color: "hsl(50, 100%, 50%)",
+      columns: undefined
+  },
   project_management: {
       id: "project_management",
       name: "Project Management",
@@ -84,8 +100,8 @@ export const MODULE_TABLE_MAPPING: ModuleMapping = {
     primary: "inventory",
     related: ["inventory_alerts", "stock_transactions", "warehouses", "items", "categories"],
     columns: {
-      display: ["items(name)", "warehouses(name)", "available_quantity", "updated_at", ],
-      aggregate: ["quantity", "value"],
+      display: ["items(name)", "warehouses(name)", "available_quantity", "updated_at"],
+      aggregate: ["quantity"],
     },
     joins: [
       {
@@ -99,70 +115,138 @@ export const MODULE_TABLE_MAPPING: ModuleMapping = {
         select: ["name"],
       },
     ],
+    subtables: [
+      {
+        name: "Stock Transactions",
+        table: "stock_transactions",
+        columns: {
+          display: ["id", "transaction_type", "quantity", "reference_number", "created_at"],
+          aggregate: ["id"],
+        },
+        joins: [],
+      },
+      {
+        name: "Active Warehouses",
+        table: "warehouses",
+        columns: {
+          display: ["id", "name", "location", "capacity", "updated_at"],
+          aggregate: ["id"],
+        },
+        joins: [],
+      },
+    ],
   },
 
   // Module 2: Customer Service
   customer_service: {
-    primary: "customer_tickets",
-    related: ["customer_issues", "customer_solutions", "customers"],
+    primary: "customer_issues",
+    related: ["customer_tickets", "customer_solutions", "customers"],
     columns: {
-      display: ["ticker_id", "customer_id", "customer_name", "priority", "status",],
+      display: ["id", "issue_id", "issue_type", "status", "updated_at"],
       aggregate: ["id"],
     },
-    joins: [
-      {
-        table: "customers",
-        on: "customer_tickets.customer_id = customers.id",
-        select: ["name as customer_name"],
-      },
-    ],
+    joins: [],
   },
 
   // Module 3: Procurement
   procurement: {
     primary: "purchase_orders",
-    related: ["purchase_order_items", "purchase_requisitions", "purchase_requisition_items", "suppliers", "quotations"],
+    related: ["purchase_order_items", "purchase_requisitions", "suppliers"],
     columns: {
-      display: ["id", "order_id", "supplier_id", "status", "total_amount", "order_date"],
-      aggregate: ["total_amount"],
+      display: ["id", "po_number", "suppliers(name)", "status", "total", "order_date"],
+      aggregate: ["id"],
     },
     joins: [
       {
         table: "suppliers",
         on: "purchase_orders.supplier_id = suppliers.id",
-        select: ["name as supplier_name"],
+        select: ["name"],
+      },
+    ],
+    subtables: [
+      {
+        name: "Purchase Order Items",
+        table: "purchase_order_items",
+        columns: {
+          display: ["id", "purchase_order_id", "items(name)", "quantity", "price", "created_at"],
+          
+        },
+        joins: [
+          {
+            table: "items",
+            on: "purchase_order_items.item_id = items.id",
+            select: ["name"],
+          },
+        ],
+      },
+      {
+        name: "Goods Receipts",
+        table: "goods_receipts",
+        columns: {
+          display: ["id", "gr_number", "invoice_number", "status", "created_at"],
+          
+        },
+        joins: [],
       },
     ],
   },
 
   // Module 4: Supply Chain
   supply_chain: {
-    primary: "supply_chain_plans",
-    related: ["routing_management", "demand_forecasting", "goods_receipts"],
+    primary: "demand_forecasting",
+    related: ["routing_management", "supply_chain_plans"],
     columns: {
-      display: ["id", "plan_name", "status", "start_date", "end_date"],
-      aggregate: ["id"],
+      display: ["id", "forecast_id", "predicted_demand", "lead_time", "recommend_order_qty", "created_at"],
+      
     },
+    joins: [],
   },
 
   // Module 5: Finance
   finance: {
     primary: "accounts_receivable",
-    related: ["accounts_payable", "payroll"],
+    related: ["accounts_payable"],
     columns: {
-      display: ["id", "invoice_id", "unit_price", "total_amount",  "invoice_date", "payment_status"],
-      aggregate: ["amount"],
+      display: ["invoice_id", "customers(customer_name)", "total_amount", "payment_status", "invoice_date"],
+      
     },
+    joins: [
+      {
+        table: "customers",
+        on: "accounts_receivable.customer_id = customers.id",
+        select: ["customer_name"],
+      },
+    ],
   },
+
+  // Module 6: E-Commerce
+  ecommerce: {
+    primary: "sales_orders",
+    related: ["customers"],
+    columns: {
+      display: ["order_id", "customers(customer_name)", "total_amount", "delivery_status", "order_date"],
+      
+    },
+    joins: [
+      {
+        table: "customers",
+        on: "sales_orders.customer_id = customers.id",
+        select: ["customer_name"],
+      },
+    ],
+  },
+
+  
 
   // Module 8: Project Management
   project_management: {
     primary: "projects",
     related: ["project_tasks", "project_timelines", "project_resources"],
     columns: {
-      display: ["id", "name", "status", "start_date", "end_date", "budget"],
-      aggregate: ["budget"],
+      display: ["id", "project_code", "project_name", "project_cost", "estimated_end_date", "status"],
+      
     },
+    joins: [],
   },
 
   // Module 9: Human Resources
@@ -170,7 +254,7 @@ export const MODULE_TABLE_MAPPING: ModuleMapping = {
     primary: "employees",
     related: ["departments", "attendance"],
     columns: {
-      display: ["id", "first_name", "last_name", "departments(name)", "position", "rate_per_day", "hire_date"],
+      display: ["id", "first_name", "last_name", "departments(name)", "position", "hire_date"],
       aggregate: ["salary"],
     },
     joins: [
@@ -185,12 +269,18 @@ export const MODULE_TABLE_MAPPING: ModuleMapping = {
   // Module 10: Sales
   sales: {
     primary: "sales_orders",
-    related: ["leads", "customers", "items"],
+    related: ["leads", "customers"],
     columns: {
-      display: ["order_id", "customers(customer_name)", "items(name)", "demand_quantity", "total_amount", "delivery_status", "order_date"],
-      aggregate: ["amount"],
+      display: ["order_id", "customers(customer_name)", "total_amount", "delivery_status", "order_date"],
+      aggregate: ["total_amount"],
     },
-    
+    joins: [
+      {
+        table: "customers",
+        on: "sales_orders.customer_id = customers.id",
+        select: ["customer_name"],
+      },
+    ],
   },
 
   // All modules view
@@ -210,6 +300,6 @@ export const getModuleConfig = (moduleKey: ModuleKey) => {
 // Helper function to get all active modules
 export const getActiveModules = (): ModuleKey[] => {
   return Object.keys(MODULE_TABLE_MAPPING).filter(
-    (key) => key !== "all"
+    (key) => key !== "all" && key !== "business_intelligence"
   ) as ModuleKey[];
 };
