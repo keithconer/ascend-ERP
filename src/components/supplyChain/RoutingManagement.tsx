@@ -46,6 +46,8 @@ export default function RoutingManagement() {
     departure_time: "",
     expected_arrival_time: "",
   });
+  const now = new Date().toISOString().slice(0, 16);
+
 
   // Fetch routing management records
   const { data: routes, isLoading } = useQuery({
@@ -203,18 +205,44 @@ export default function RoutingManagement() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!formData.plan_id || !formData.source_warehouse_id || !formData.destination_supplier_id || !formData.distance_km) {
+  
+    const nowISO = new Date().toISOString();
+  
+    // Prevent past departure time
+    if (formData.departure_time && formData.departure_time < nowISO) {
+      toast.error("Departure time cannot be in the past");
+      return;
+    }
+  
+    // Prevent arrival earlier than departure
+    if (
+      formData.departure_time &&
+      formData.expected_arrival_time &&
+      formData.expected_arrival_time < formData.departure_time
+    ) {
+      toast.error("Expected arrival cannot be earlier than departure time");
+      return;
+    }
+  
+    // Required fields
+    if (
+      !formData.plan_id ||
+      !formData.source_warehouse_id ||
+      !formData.destination_supplier_id ||
+      !formData.distance_km
+    ) {
       toast.error("Please fill in all required fields");
       return;
     }
-
+  
+    // Proceed with create or update
     if (selectedRoute) {
       updateRouteMutation.mutate({ id: selectedRoute.id, data: formData });
     } else {
       createRouteMutation.mutate(formData);
     }
   };
+  
 
   const handleEdit = (route: any) => {
     setSelectedRoute(route);
@@ -486,6 +514,7 @@ export default function RoutingManagement() {
                 <Label>Departure Time</Label>
                 <Input
                   type="datetime-local"
+                  min={now}
                   value={formData.departure_time}
                   onChange={(e) => setFormData({ ...formData, departure_time: e.target.value })}
                 />
@@ -496,6 +525,7 @@ export default function RoutingManagement() {
                 <Label>Expected Arrival Time</Label>
                 <Input
                   type="datetime-local"
+                  min={formData.departure_time || now}
                   value={formData.expected_arrival_time}
                   onChange={(e) => setFormData({ ...formData, expected_arrival_time: e.target.value })}
                 />
