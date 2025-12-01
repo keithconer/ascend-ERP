@@ -229,13 +229,20 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
             value={lastName}
             onChange={setLastName}
           />
-          <TextInput
-            id="middleInitial"
-            label="Middle Initial"
-            placeholder="Enter Middle Initial"
-            value={middleInitial}
-            onChange={setMiddleInitial}
-          />
+          <div>
+            <label htmlFor="middleInitial" className="block text-sm font-semibold">
+              Middle Initial
+            </label>
+            <input
+              id="middleInitial"
+              type="text"
+              maxLength={1}
+              placeholder="M"
+              className="input input-bordered w-full"
+              value={middleInitial}
+              onChange={(e) => setMiddleInitial(e.target.value.toUpperCase())}
+            />
+          </div>
           <TextInput
             id="position"
             label="Position"
