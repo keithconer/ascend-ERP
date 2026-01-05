@@ -134,10 +134,10 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
       })
       return
     }
-  
+
     // Normalize employee type
     const normalizedEmployeeType = employeeType === "full-time" ? "Full-time" : "Part-time";
-  
+
     setLoading(true)
     console.log("[v0] Starting employee insert...")
 
@@ -157,13 +157,13 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
         rate_per_day: parsedRatePerDay,
         work_days_per_week: Number.parseInt(workDaysPerWeek),
       }
-  
+
       console.log("[v0] Employee data to insert:", employeeData)
-  
+
       const { data, error } = await supabase.from("employees").insert(employeeData).select().single()
-  
+
       console.log("[v0] Insert response - data:", data, "error:", error)
-  
+
       if (error) {
         console.error("[v0] Error adding employee:", error)
         toast({
@@ -174,16 +174,16 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
         setLoading(false)
         return
       }
-  
+
       console.log("[v0] Employee added successfully:", data)
-  
+
       toast({
         title: "Success",
         description: "Employee added successfully",
       })
-  
+
       onSave(data)
-  
+
       setFirstName("")
       setLastName("")
       setMiddleInitial("")
@@ -194,7 +194,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
       setEmployeeType("")
       setRatePerDay("")
       setWorkDaysPerWeek("")
-  
+
       onClose()
     } catch (err) {
       console.error("[v0] Unexpected error:", err)
@@ -220,14 +220,22 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
             label="First Name"
             placeholder="Enter First Name"
             value={firstName}
-            onChange={setFirstName}
+            onChange={(value) => {
+              if (/^[a-zA-Z\s]*$/.test(value)) {
+                setFirstName(value)
+              }
+            }}
           />
           <TextInput
             id="lastName"
             label="Last Name"
             placeholder="Enter Last Name"
             value={lastName}
-            onChange={setLastName}
+            onChange={(value) => {
+              if (/^[a-zA-Z\s]*$/.test(value)) {
+                setLastName(value)
+              }
+            }}
           />
           <div>
             <label htmlFor="middleInitial" className="block text-sm font-semibold">
@@ -240,7 +248,12 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
               placeholder="M"
               className="input input-bordered w-full"
               value={middleInitial}
-              onChange={(e) => setMiddleInitial(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                const value = e.target.value.toUpperCase()
+                if (/^[A-Z]*$/.test(value)) {
+                  setMiddleInitial(value)
+                }
+              }}
             />
           </div>
           <TextInput
@@ -248,7 +261,11 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({ isOpen, onClose, on
             label="Position"
             placeholder="Enter Position"
             value={position}
-            onChange={setPosition}
+            onChange={(value) => {
+              if (/^[a-zA-Z\s]*$/.test(value)) {
+                setPosition(value)
+              }
+            }}
           />
           <NumericInput
             id="phoneNumber"

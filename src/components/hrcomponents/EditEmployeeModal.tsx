@@ -169,14 +169,22 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
             label="First Name"
             placeholder="Enter First Name"
             value={firstName}
-            onChange={setFirstName}
+            onChange={(value) => {
+              if (/^[a-zA-Z\s]*$/.test(value)) {
+                setFirstName(value)
+              }
+            }}
           />
           <TextInput
             id="lastName"
             label="Last Name"
             placeholder="Enter Last Name"
             value={lastName}
-            onChange={setLastName}
+            onChange={(value) => {
+              if (/^[a-zA-Z\s]*$/.test(value)) {
+                setLastName(value)
+              }
+            }}
           />
           <div>
             <label htmlFor="middleInitial" className="block text-sm font-semibold">
@@ -189,7 +197,12 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
               placeholder="M"
               className="input input-bordered w-full"
               value={middleInitial}
-              onChange={(e) => setMiddleInitial(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                const value = e.target.value.toUpperCase()
+                if (/^[A-Z]*$/.test(value)) {
+                  setMiddleInitial(value)
+                }
+              }}
             />
           </div>
           <TextInput
@@ -197,7 +210,11 @@ const EditEmployeeModal: React.FC<EditEmployeeModalProps> = ({ isOpen, onClose, 
             label="Position"
             placeholder="Enter Position"
             value={position}
-            onChange={setPosition}
+            onChange={(value) => {
+              if (/^[a-zA-Z\s]*$/.test(value)) {
+                setPosition(value)
+              }
+            }}
           />
           <NumericInput
             id="phoneNumber"
